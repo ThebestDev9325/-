@@ -1,6 +1,6 @@
-# 참을인 Flutter v1
+# 참을인 Flutter
 
-Firebase를 연결하기 전 단계의 로컬 Flutter MVP입니다.
+화난 마음을 기록하고 이야기를 추천받는 Flutter Android 앱입니다. Firebase 익명 인증과 Cloud Firestore를 사용합니다.
 
 ## 포함 기능
 
@@ -10,7 +10,10 @@ Firebase를 연결하기 전 단계의 로컬 Flutter MVP입니다.
 - 참을 인 직접 그리기
 - 7단계 획순 이미지 애니메이션
 - 상황 및 감정 입력
-- 로컬 추천 엔진
+- 로컬 이야기 추천 엔진
+- Firebase 익명 인증
+- Firestore 기록 동기화
+- 익명 공유 / 공감 / 신고 저장
 - 내 기록 달력 / 월 이동 / 2026~2030년 선택
 - 한 날짜에 여러 기록 조회
 - 공감 탭 / 오늘의 Best / 신고
@@ -23,32 +26,22 @@ Firebase를 연결하기 전 단계의 로컬 Flutter MVP입니다.
 
 ## 실행 방법
 
-이 압축본은 Flutter 소스 프로젝트입니다.
-
-1. Flutter SDK와 Android Studio를 설치합니다.
-2. 압축을 풉니다.
-3. 프로젝트 폴더에서 아래 명령을 실행합니다.
+프로젝트 폴더에서 아래 명령을 실행합니다.
 
 ```bash
-flutter create . --platforms=android
 flutter pub get
 flutter run
 ```
 
-`flutter create .`는 Android 빌드용 폴더만 생성하며, 이 프로젝트의 `lib`와 `assets`는 유지됩니다.
+## 빌드
 
-## 다음 단계: Firebase
+```bash
+flutter build apk --release
+flutter build appbundle --release
+```
 
-추후 아래 기능을 Firebase에 연결하면 됩니다.
-
-- Firebase Authentication
-- Cloud Firestore
-- 신고 데이터
-- 공감 중복 방지
-- 사용자별 기록 동기화
-- 회원탈퇴 및 데이터 삭제
-- 관리자 게시글 숨김/삭제
+Firebase 프로젝트는 `thebest-dev`, Android 패키지명은 `com.chameulin.app`입니다.
 
 ## 참고
 
-현재 소셜 로그인 버튼과 실제 서버 저장은 연결하지 않은 1단계 버전입니다.
+업로드 키(`.jks`)와 `android/key.properties`는 보안을 위해 Git에 포함하지 않습니다.

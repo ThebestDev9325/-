@@ -1,11 +1,18 @@
 import 'dart:async';
 import 'dart:math';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'data/positive_stories.dart';
 import 'data/story_db.dart';
+import 'firebase_options.dart';
+import 'firebase_service.dart';
 import 'models.dart';
 
-void main() => runApp(const ChameulinApp());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  runApp(const ChameulinApp());
+}
 
 class ChameulinApp extends StatefulWidget {
   const ChameulinApp({super.key});
@@ -21,13 +28,23 @@ class _ChameulinAppState extends State<ChameulinApp> {
 
   @override
   Widget build(BuildContext context) {
+    final lightScheme = ColorScheme.fromSeed(
+      seedColor: const Color(0xFF617A3F),
+    ).copyWith(
+      surface: const Color(0xFFF7FAEC),
+      surfaceContainerLow: const Color(0xFFFBFDF4),
+    );
     return MaterialApp(
       title: '참을인',
       debugShowCheckedModeBanner: false,
       themeMode: darkMode ? ThemeMode.dark : ThemeMode.light,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF617A3F)),
-        scaffoldBackgroundColor: const Color(0xFFFBFCF2),
+        colorScheme: lightScheme,
+        scaffoldBackgroundColor: const Color(0xFFF2F7E4),
+        appBarTheme: const AppBarTheme(backgroundColor: Color(0xFFF2F7E4)),
+        navigationBarTheme: const NavigationBarThemeData(
+          backgroundColor: Color(0xFFF8FBEF),
+        ),
         useMaterial3: true,
       ),
       darkTheme: ThemeData.dark(useMaterial3: true).copyWith(
@@ -79,8 +96,9 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   String? nickname;
   int tabIndex = 0;
-  final String currentUserId = 'local-user';
+  String currentUserId = 'connecting';
   final records = <EmotionRecord>[];
+  StreamSubscription<List<SharedPost>>? _postsSubscription;
   final sharedPosts = <SharedPost>[
     SharedPost(
       id: 'sample-1',
@@ -101,6 +119,48 @@ class _AppShellState extends State<AppShell> {
       reactions: [88, 12, 4],
     ),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_connectFirebase());
+  }
+
+  Future<void> _connectFirebase() async {
+    if (Firebase.apps.isEmpty) return;
+    try {
+      final userId = await AppFirebaseService.instance.signIn();
+      final savedRecords = await AppFirebaseService.instance.loadRecords();
+      if (!mounted) return;
+      setState(() {
+        currentUserId = userId;
+        records
+          ..clear()
+          ..addAll(savedRecords);
+      });
+      _postsSubscription = AppFirebaseService.instance.watchSharedPosts().listen(
+        (posts) {
+          if (!mounted) return;
+          setState(() {
+            sharedPosts
+              ..clear()
+              ..addAll(posts);
+          });
+        },
+        onError: (Object error, StackTrace stackTrace) {
+          debugPrint('Firestore shared posts error: $error');
+        },
+      );
+    } catch (error, stackTrace) {
+      debugPrint('Firebase connection error: $error\n$stackTrace');
+    }
+  }
+
+  @override
+  void dispose() {
+    _postsSubscription?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -135,15 +195,23 @@ class _AppShellState extends State<AppShell> {
     return Scaffold(
       body: IndexedStack(index: tabIndex, children: pages),
       bottomNavigationBar: NavigationBar(
+        indicatorColor: const [
+          Color(0xFFFFE1C2),
+          Color(0xFFE7D9FF),
+          Color(0xFFFFD8DE),
+          Color(0xFFD8ECCA),
+          Color(0xFFFFE9B8),
+          Color(0xFFDCE2EA),
+        ][tabIndex],
         selectedIndex: tabIndex,
         onDestinationSelected: (i) => setState(() => tabIndex = i),
         destinations: const [
-          NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: '홈'),
-          NavigationDestination(icon: Icon(Icons.calendar_month_outlined), label: '내 기록'),
-          NavigationDestination(icon: Icon(Icons.favorite_border), label: '공감'),
-          NavigationDestination(icon: Icon(Icons.eco_outlined), label: '내 공유'),
-          NavigationDestination(icon: Icon(Icons.wb_sunny_outlined), label: '긍정'),
-          NavigationDestination(icon: Icon(Icons.settings_outlined), label: '설정'),
+          NavigationDestination(icon: Icon(Icons.home_outlined, color: Color(0xFFE9823B)), selectedIcon: Icon(Icons.home, color: Color(0xFFD46B20)), label: '홈'),
+          NavigationDestination(icon: Icon(Icons.calendar_month_outlined, color: Color(0xFF8559B5)), selectedIcon: Icon(Icons.calendar_month, color: Color(0xFF6F419F)), label: '내 기록'),
+          NavigationDestination(icon: Icon(Icons.favorite_border, color: Color(0xFFE15064)), selectedIcon: Icon(Icons.favorite, color: Color(0xFFC9374E)), label: '공감'),
+          NavigationDestination(icon: Icon(Icons.eco_outlined, color: Color(0xFF55934E)), selectedIcon: Icon(Icons.eco, color: Color(0xFF3E7B38)), label: '내 공유'),
+          NavigationDestination(icon: Icon(Icons.wb_sunny_outlined, color: Color(0xFFE4A52C)), selectedIcon: Icon(Icons.wb_sunny, color: Color(0xFFC88A12)), label: '긍정'),
+          NavigationDestination(icon: Icon(Icons.settings_outlined, color: Color(0xFF6F7887)), selectedIcon: Icon(Icons.settings, color: Color(0xFF535D6D)), label: '설정'),
         ],
       ),
     );
@@ -183,6 +251,9 @@ class _AppShellState extends State<AppShell> {
         tabIndex = 1;
       }
     });
+    if (currentUserId != 'connecting') {
+      unawaited(AppFirebaseService.instance.saveRecord(record));
+    }
   }
 
   void _react(SharedPost post, int reactionIndex) {
@@ -191,10 +262,12 @@ class _AppShellState extends State<AppShell> {
       post.myReaction = reactionIndex;
       post.reactions[reactionIndex]++;
     });
+    unawaited(AppFirebaseService.instance.react(post, reactionIndex));
   }
 
   void _report(SharedPost post) {
     setState(() => post.reportCount++);
+    unawaited(AppFirebaseService.instance.report(post));
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('신고가 접수되었습니다. 운영자 검토 후 처리됩니다.')),
     );
@@ -212,11 +285,12 @@ class SplashNicknameFlow extends StatefulWidget {
 class _SplashNicknameFlowState extends State<SplashNicknameFlow> {
   int step = 0;
   final controller = TextEditingController();
+  Timer? _timer;
 
   @override
   void initState() {
     super.initState();
-    Timer(const Duration(seconds: 3), () {
+    _timer = Timer(const Duration(seconds: 3), () {
       if (mounted) setState(() => step = 1);
     });
   }
@@ -224,7 +298,15 @@ class _SplashNicknameFlowState extends State<SplashNicknameFlow> {
   void submit() {
     final nick = controller.text.trim().isEmpty ? '화가많은화가' : controller.text.trim();
     setState(() => step = 2);
-    Timer(const Duration(seconds: 1), () => widget.onDone(nick));
+    _timer?.cancel();
+    _timer = Timer(const Duration(seconds: 1), () => widget.onDone(nick));
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    controller.dispose();
+    super.dispose();
   }
 
   @override
@@ -260,8 +342,6 @@ class _SplashNicknameFlowState extends State<SplashNicknameFlow> {
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Chip(label: Text('처음 한 번')),
-            const SizedBox(height: 24),
             const Text('참을인에서 사용할\n닉네임을 정해주세요.', style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
             const Text('실명 대신 앱 안에서만 사용할 이름입니다.'),
@@ -333,6 +413,7 @@ class _WritingFlowState extends State<WritingFlow> {
   String moodEmoji = '😤';
   String moodLabel = '많이 화남';
   StoryItem? selectedStory;
+  String? storyFeedback;
   int strokeIndex = 0;
   Timer? strokeTimer;
 
@@ -425,6 +506,7 @@ class _WritingFlowState extends State<WritingFlow> {
         const SizedBox(width: 10),
         Expanded(child: FilledButton(onPressed: next, child: const Text('다 적었습니다'))),
       ]),
+      const SizedBox(height: 96),
     ]),
   );
 
@@ -482,7 +564,31 @@ class _WritingFlowState extends State<WritingFlow> {
       ]))),
       const SizedBox(height: 14),
       const Text('이 이야기는 어땠나요?', style: TextStyle(fontWeight: FontWeight.bold)),
-      Wrap(spacing: 8, children: const [Chip(label: Text('마음에 남았어요')), Chip(label: Text('잘 모르겠어요')), Chip(label: Text('도움이 안 됐어요'))]),
+      const SizedBox(height: 8),
+      Row(children: [
+        for (final option in const ['좋아요', '잘 모르겠어요', '별로에요']) ...[
+          Expanded(
+            child: ChoiceChip(
+              label: SizedBox(
+                width: double.infinity,
+                child: Text(
+                  option,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  style: const TextStyle(fontSize: 11.5),
+                ),
+              ),
+              labelPadding: const EdgeInsets.symmetric(horizontal: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              visualDensity: VisualDensity.compact,
+              selected: storyFeedback == option,
+              onSelected: (_) => setState(() => storyFeedback = option),
+            ),
+          ),
+          if (option != '별로에요') const SizedBox(width: 6),
+        ],
+      ]),
+      const SizedBox(height: 10),
       FilledButton(onPressed: next, child: const Text('다음')),
     ]);
   }
@@ -648,7 +754,11 @@ class EmpathyPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final best = posts.isEmpty ? null : [...posts]..sort((a,b)=>b.reactions[0].compareTo(a.reactions[0]));
+    final List<SharedPost>? best = posts.isEmpty
+        ? null
+        : ([...posts]..sort(
+            (a, b) => b.reactions[0].compareTo(a.reactions[0]),
+          ));
     return SafeArea(child: ListView(padding: const EdgeInsets.all(18), children: [
       const Text('공감하기', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
       if(best != null) Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children:[
@@ -676,8 +786,9 @@ class SharedPostCard extends StatelessWidget {
       onPressed: mine || post.myReaction != null ? null : ()=>onReact(post,i),
       child: Text('${['🤬','😐','🙂'][i]}\n${post.reactions[i]}', textAlign:TextAlign.center),
     ))))),
-    TextButton.icon(onPressed: ()=>onReport(post), icon: const Icon(Icons.siren, color:Colors.red), label: const Text('신고')),
+    TextButton.icon(onPressed: ()=>onReport(post), icon: const Icon(Icons.report, color:Colors.red), label: const Text('신고')),
   ])));
+}
 
 class MySharePage extends StatelessWidget {
   final List<SharedPost> posts;
@@ -716,7 +827,7 @@ class _PositivePageState extends State<PositivePage>{
         Chip(label:Text('${s.icon} 긍정')),
         Text(s.title, style: const TextStyle(fontSize:27,fontWeight:FontWeight.bold)),
         const SizedBox(height:12),
-        Text(s.body),
+        Text(s.richBody),
         const SizedBox(height:14),
         Text(s.quote, style: const TextStyle(fontWeight:FontWeight.bold)),
       ]))),
@@ -745,7 +856,7 @@ class SettingsPage extends StatelessWidget {
       SwitchListTile(title:const Text('🎵 배경음악'),subtitle:const Text('추후 음원 연결'),value:backgroundMusic,onChanged:onBackgroundMusic),
     ])),
     Card(child:Padding(padding:const EdgeInsets.all(12),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-      const Text('🌱 AI 이야기 스타일',style:TextStyle(fontWeight:FontWeight.bold)),
+      const Text('🌱 이야기 스타일',style:TextStyle(fontWeight:FontWeight.bold)),
       ...[
         ('comfort','위로 중심'),('growth','성장 중심'),('reality','현실 조언 중심'),('random','랜덤')
       ].map((x)=>RadioListTile<String>(value:x.$1,groupValue:storyStyle,onChanged:(v)=>onStoryStyle(v!),title:Text(x.$2))),

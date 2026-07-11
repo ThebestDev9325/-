@@ -1,0 +1,26 @@
+{
+  "firestore": {
+    "database": "(default)",
+    "location": "asia-northeast3",
+    "rules": "firestore.rules"
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "thebest-dev",
+          "appId": "1:931900199890:android:1a19a75556769456b4ee0b",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "thebest-dev",
+          "configurations": {
+            "android": "1:931900199890:android:1a19a75556769456b4ee0b"
+          }
+        }
+      }
+    }
+  }
+}

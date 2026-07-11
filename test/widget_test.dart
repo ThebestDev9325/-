@@ -1,0 +1,18 @@
+// This is a basic Flutter widget test.
+//
+// To perform an interaction with a widget in your test, use the WidgetTester
+// utility in the flutter_test package. For example, you can send tap and scroll
+// gestures. You can also use WidgetTester to find child widgets in the widget
+// tree, read text, and verify that the values of widget properties are correct.
+
+import 'package:flutter_test/flutter_test.dart';
+
+import 'package:chameulin/main.dart';
+
+void main() {
+  testWidgets('참을인 앱이 시작 화면을 표시한다', (WidgetTester tester) async {
+    await tester.pumpWidget(const ChameulinApp());
+    expect(find.text('참을인'), findsOneWidget);
+    expect(find.text('화난 마음에, 이야기 하나.'), findsOneWidget);
+  });
+}
