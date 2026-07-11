@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "931900199890",
+    "project_id": "thebest-dev",
+    "storage_bucket": "thebest-dev.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:931900199890:android:1a19a75556769456b4ee0b",
+        "android_client_info": {
+          "package_name": "com.chameulin.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCeEZSx6_ZAQXe6UVNaLQFUM7nN9P8xzUU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
