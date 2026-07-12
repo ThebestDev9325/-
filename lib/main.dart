@@ -829,7 +829,7 @@ class _WritingFlowState extends State<WritingFlow> {
     const Text('누구 때문에 화가 났나요?', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
     const SizedBox(height: 12),
     DropdownButtonFormField<String>(
-      value: category,
+      initialValue: category,
       items: categories.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
       onChanged: (v) => setState(() => category = v!),
       decoration: const InputDecoration(border: OutlineInputBorder()),
@@ -1103,7 +1103,9 @@ class _RecordsPageState extends State<RecordsPage> {
   Widget build(BuildContext context) {
     final monthly = widget.records.where((r) => r.createdAt.year == year && r.createdAt.month == month).toList();
     final counts = <String, int>{};
-    for (final r in monthly) counts[r.category] = (counts[r.category] ?? 0) + 1;
+    for (final r in monthly) {
+      counts[r.category] = (counts[r.category] ?? 0) + 1;
+    }
     final top = counts.entries.isEmpty ? null : counts.entries.reduce((a,b) => a.value >= b.value ? a : b);
 
     return SafeArea(child: ListView(padding: const EdgeInsets.all(18), children: [
@@ -1138,7 +1140,9 @@ class CalendarGrid extends StatelessWidget {
     final firstWeekday = DateTime(year, month, 1).weekday % 7;
     final days = DateTime(year, month + 1, 0).day;
     final cells = <Widget>[];
-    for (var i=0;i<firstWeekday;i++) cells.add(const SizedBox());
+    for (var i=0;i<firstWeekday;i++) {
+      cells.add(const SizedBox());
+    }
     for (var d=1;d<=days;d++) {
       final list = records.where((r)=>r.createdAt.day==d).toList();
       cells.add(InkWell(
@@ -1364,9 +1368,20 @@ class SettingsPage extends StatelessWidget {
     ])),
     Card(child:Padding(padding:const EdgeInsets.all(12),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
       const Text('🌱 이야기 스타일',style:TextStyle(fontWeight:FontWeight.bold)),
-      ...[
-        ('comfort','위로 중심'),('growth','성장 중심'),('reality','현실 조언 중심'),('random','랜덤')
-      ].map((x)=>RadioListTile<String>(value:x.$1,groupValue:storyStyle,onChanged:(v)=>onStoryStyle(v!),title:Text(x.$2))),
+      RadioGroup<String>(
+        groupValue: storyStyle,
+        onChanged: (value) {
+          if (value != null) onStoryStyle(value);
+        },
+        child: Column(
+          children: [
+            ('comfort','위로 중심'),
+            ('growth','성장 중심'),
+            ('reality','현실 조언 중심'),
+            ('random','랜덤'),
+          ].map((x)=>RadioListTile<String>(value:x.$1,title:Text(x.$2))).toList(),
+        ),
+      ),
     ]))),
     Card(child:Column(children:[
       ListTile(title:const Text('내 데이터 삭제'),trailing:TextButton(onPressed:(){},child:const Text('삭제'))),
