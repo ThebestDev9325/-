@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'audio_service.dart';
 import 'data/positive_stories.dart';
 import 'data/story_db.dart';
 import 'firebase_options.dart';
@@ -11,6 +12,7 @@ import 'models.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await AppAudioService.instance.initialize();
   runApp(const ChameulinApp());
 }
 
@@ -24,6 +26,8 @@ class _ChameulinAppState extends State<ChameulinApp> {
   bool darkMode = false;
   bool effectSound = true;
   bool backgroundMusic = true;
+  double effectVolume = .24;
+  double backgroundVolume = .045;
   String storyStyle = 'random';
 
   @override
@@ -57,10 +61,26 @@ class _ChameulinAppState extends State<ChameulinApp> {
         darkMode: darkMode,
         effectSound: effectSound,
         backgroundMusic: backgroundMusic,
+        effectVolume: effectVolume,
+        backgroundVolume: backgroundVolume,
         storyStyle: storyStyle,
         onDarkMode: (v) => setState(() => darkMode = v),
-        onEffectSound: (v) => setState(() => effectSound = v),
-        onBackgroundMusic: (v) => setState(() => backgroundMusic = v),
+        onEffectSound: (v) {
+          setState(() => effectSound = v);
+          unawaited(AppAudioService.instance.setEffectEnabled(v));
+        },
+        onBackgroundMusic: (v) {
+          setState(() => backgroundMusic = v);
+          unawaited(AppAudioService.instance.setBackgroundEnabled(v));
+        },
+        onEffectVolume: (v) {
+          setState(() => effectVolume = v);
+          unawaited(AppAudioService.instance.setEffectVolume(v));
+        },
+        onBackgroundVolume: (v) {
+          setState(() => backgroundVolume = v);
+          unawaited(AppAudioService.instance.setBackgroundVolume(v));
+        },
         onStoryStyle: (v) => setState(() => storyStyle = v),
       ),
     );
@@ -71,10 +91,14 @@ class AppShell extends StatefulWidget {
   final bool darkMode;
   final bool effectSound;
   final bool backgroundMusic;
+  final double effectVolume;
+  final double backgroundVolume;
   final String storyStyle;
   final ValueChanged<bool> onDarkMode;
   final ValueChanged<bool> onEffectSound;
   final ValueChanged<bool> onBackgroundMusic;
+  final ValueChanged<double> onEffectVolume;
+  final ValueChanged<double> onBackgroundVolume;
   final ValueChanged<String> onStoryStyle;
 
   const AppShell({
@@ -82,10 +106,14 @@ class AppShell extends StatefulWidget {
     required this.darkMode,
     required this.effectSound,
     required this.backgroundMusic,
+    required this.effectVolume,
+    required this.backgroundVolume,
     required this.storyStyle,
     required this.onDarkMode,
     required this.onEffectSound,
     required this.onBackgroundMusic,
+    required this.onEffectVolume,
+    required this.onBackgroundVolume,
     required this.onStoryStyle,
   });
 
@@ -165,7 +193,10 @@ class _AppShellState extends State<AppShell> {
   @override
   Widget build(BuildContext context) {
     if (nickname == null) {
-      return SplashNicknameFlow(onDone: (value) => setState(() => nickname = value));
+      return SplashNicknameFlow(onDone: (value) {
+        setState(() => nickname = value);
+        unawaited(AppAudioService.instance.setBgm(AppBgm.home));
+      });
     }
 
     final pages = [
@@ -184,10 +215,14 @@ class _AppShellState extends State<AppShell> {
         darkMode: widget.darkMode,
         effectSound: widget.effectSound,
         backgroundMusic: widget.backgroundMusic,
+        effectVolume: widget.effectVolume,
+        backgroundVolume: widget.backgroundVolume,
         storyStyle: widget.storyStyle,
         onDarkMode: widget.onDarkMode,
         onEffectSound: widget.onEffectSound,
         onBackgroundMusic: widget.onBackgroundMusic,
+        onEffectVolume: widget.onEffectVolume,
+        onBackgroundVolume: widget.onBackgroundVolume,
         onStoryStyle: widget.onStoryStyle,
       ),
     ];
@@ -207,7 +242,13 @@ class _AppShellState extends State<AppShell> {
               Color(0xFFDCE2EA),
             ][tabIndex],
             selectedIndex: tabIndex,
-            onDestinationSelected: (i) => setState(() => tabIndex = i),
+            onDestinationSelected: (i) {
+              unawaited(AppAudioService.instance.playButton());
+              setState(() => tabIndex = i);
+              unawaited(AppAudioService.instance.setBgm(
+                i == 0 ? AppBgm.home : (i == 4 ? AppBgm.positive : null),
+              ));
+            },
             destinations: const [
               NavigationDestination(icon: Icon(Icons.home_outlined, color: Color(0xFFE9823B)), selectedIcon: Icon(Icons.home, color: Color(0xFFD46B20)), label: '홈'),
               NavigationDestination(icon: Icon(Icons.calendar_month_outlined, color: Color(0xFF8559B5)), selectedIcon: Icon(Icons.calendar_month, color: Color(0xFF6F419F)), label: '내 기록'),
@@ -224,10 +265,16 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<void> _startWriting() async {
+    await AppAudioService.instance.playButton();
+    await AppAudioService.instance.setBgm(null);
+    if (!mounted) return;
     final result = await Navigator.of(context).push<WritingResult>(
       MaterialPageRoute(builder: (_) => WritingFlow(storyStyle: widget.storyStyle)),
     );
-    if (result == null) return;
+    if (result == null) {
+      unawaited(AppAudioService.instance.setBgm(AppBgm.home));
+      return;
+    }
     final record = EmotionRecord(
       id: DateTime.now().microsecondsSinceEpoch.toString(),
       createdAt: DateTime.now(),
@@ -259,6 +306,14 @@ class _AppShellState extends State<AppShell> {
     });
     if (currentUserId != 'connecting') {
       unawaited(AppFirebaseService.instance.saveRecord(record));
+      if (result.storyFeedback != null) {
+        unawaited(
+          AppFirebaseService.instance.submitStoryFeedback(
+            result.story.id,
+            result.storyFeedback!,
+          ),
+        );
+      }
     }
   }
 
@@ -348,8 +403,9 @@ class _SplashNicknameFlowState extends State<SplashNicknameFlow> {
   void submit() {
     final nick = controller.text.trim().isEmpty ? '화가많은화가' : controller.text.trim();
     setState(() => step = 2);
+    unawaited(AppAudioService.instance.playComplete());
     _timer?.cancel();
-    _timer = Timer(const Duration(seconds: 1), () => widget.onDone(nick));
+    _timer = Timer(const Duration(milliseconds: 2500), () => widget.onDone(nick));
   }
 
   @override
@@ -444,7 +500,16 @@ class WritingResult {
   final String moodLabel;
   final StoryItem story;
   final bool shared;
-  const WritingResult(this.text, this.category, this.moodEmoji, this.moodLabel, this.story, this.shared);
+  final String? storyFeedback;
+  const WritingResult(
+    this.text,
+    this.category,
+    this.moodEmoji,
+    this.moodLabel,
+    this.story,
+    this.shared,
+    this.storyFeedback,
+  );
 }
 
 class WritingFlow extends StatefulWidget {
@@ -473,6 +538,11 @@ class _WritingFlowState extends State<WritingFlow> {
   void next() {
     if (page == 2) selectedStory = recommendStory(textController.text, category, widget.storyStyle);
     if (page < 4) {
+      if (page == 2) {
+        unawaited(AppAudioService.instance.playStoryTransition());
+      } else {
+        unawaited(AppAudioService.instance.playButton());
+      }
       setState(() => page++);
       pageController.animateToPage(page, duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
     }
@@ -539,11 +609,17 @@ class _WritingFlowState extends State<WritingFlow> {
       const SizedBox(height: 16),
       Expanded(
         child: GestureDetector(
-          onPanStart: (d) => setState(() => points.add(d.localPosition)),
+          onPanStart: (d) {
+            unawaited(AppAudioService.instance.playBrush());
+            setState(() => points.add(d.localPosition));
+          },
           onPanUpdate: (d) => setState(() => points.add(d.localPosition)),
           onPanEnd: (_) => setState(() => points.add(null)),
           child: CustomPaint(
-            painter: DrawPainter(points),
+            painter: DrawPainter(
+              points,
+              isDark: Theme.of(context).brightness == Brightness.dark,
+            ),
             child: Container(
               decoration: BoxDecoration(border: Border.all(color: Colors.black12), borderRadius: BorderRadius.circular(24)),
               child: const Center(child: Text('忍', style: TextStyle(fontSize: 150, color: Color(0x22617A3F)))),
@@ -590,7 +666,7 @@ class _WritingFlowState extends State<WritingFlow> {
             color: moodEmoji == m.$1 ? Theme.of(context).colorScheme.primaryContainer : null,
             child: InkWell(
               borderRadius: BorderRadius.circular(12),
-              onTap: () { setState(() { moodEmoji = m.$1; moodLabel = m.$2; }); next(); },
+              onTap: () { unawaited(AppAudioService.instance.playEmotion()); setState(() { moodEmoji = m.$1; moodLabel = m.$2; }); next(); },
               child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Text(m.$1, style: const TextStyle(fontSize: 40)), Text(m.$2, style: const TextStyle(fontWeight: FontWeight.bold))]),
             ),
           )).toList(),
@@ -651,12 +727,12 @@ class _WritingFlowState extends State<WritingFlow> {
       Card(child: Padding(padding: const EdgeInsets.all(18), child: Column(children: [
         const Text('내 기록으로 저장', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
         const Text('달력에서 다시 볼 수 있습니다.'),
-        FilledButton(onPressed: () => Navigator.pop(context, WritingResult(textController.text, category, moodEmoji, moodLabel, story, false)), child: const Text('내 기록으로 저장')),
+        FilledButton(onPressed: () { unawaited(AppAudioService.instance.playComplete()); Navigator.pop(context, WritingResult(textController.text, category, moodEmoji, moodLabel, story, false, storyFeedback)); }, child: const Text('내 기록으로 저장')),
       ]))),
       Card(child: Padding(padding: const EdgeInsets.all(18), child: Column(children: [
         const Text('공유하기', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
         const Text('익명으로 공유하고 공감을 받을 수 있습니다.'),
-        OutlinedButton(onPressed: () => Navigator.pop(context, WritingResult(textController.text, category, moodEmoji, moodLabel, story, true)), child: const Text('공유하기')),
+        OutlinedButton(onPressed: () { unawaited(AppAudioService.instance.playComplete()); Navigator.pop(context, WritingResult(textController.text, category, moodEmoji, moodLabel, story, true, storyFeedback)); }, child: const Text('공유하기')),
       ]))),
     ]);
   }
@@ -664,12 +740,28 @@ class _WritingFlowState extends State<WritingFlow> {
 
 class DrawPainter extends CustomPainter {
   final List<Offset?> points;
-  DrawPainter(this.points);
+  final bool isDark;
+  DrawPainter(this.points, {required this.isDark});
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = const Color(0xFF617A3F)..strokeWidth = 7..strokeCap = StrokeCap.round;
     for (var i = 0; i < points.length - 1; i++) {
-      if (points[i] != null && points[i + 1] != null) canvas.drawLine(points[i]!, points[i + 1]!, paint);
+      final start = points[i];
+      final end = points[i + 1];
+      if (start != null && end != null) {
+        final distance = (end - start).distance;
+        final width = (14.0 - distance * .22).clamp(5.5, 13.5);
+        final color = isDark ? Colors.white : Colors.black;
+        final feather = Paint()
+          ..color = color.withValues(alpha: .16)
+          ..strokeWidth = width + 3
+          ..strokeCap = StrokeCap.round;
+        final ink = Paint()
+          ..color = color.withValues(alpha: .92)
+          ..strokeWidth = width
+          ..strokeCap = StrokeCap.round;
+        canvas.drawLine(start, end, feather);
+        canvas.drawLine(start, end, ink);
+      }
     }
   }
   @override
@@ -759,7 +851,15 @@ class CalendarGrid extends StatelessWidget {
     for (var d=1;d<=days;d++) {
       final list = records.where((r)=>r.createdAt.day==d).toList();
       cells.add(InkWell(
-        onTap: list.isEmpty ? null : () => showModalBottomSheet(context: context, builder: (_) => RecordListSheet(day:d, records:list)),
+        onTap: list.isEmpty ? null : () => showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          useSafeArea: true,
+          builder: (_) => FractionallySizedBox(
+            heightFactor: .78,
+            child: RecordListSheet(day:d, records:list),
+          ),
+        ),
         child: Container(
           margin: const EdgeInsets.all(2),
           decoration: BoxDecoration(border: Border.all(color: Colors.black12), borderRadius: BorderRadius.circular(10)),
@@ -785,14 +885,66 @@ class RecordListSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) => SafeArea(child: ListView(padding: const EdgeInsets.all(18), children: [
     Text('$day일 기록 ${records.length}개', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-    ...records.map((r)=>Card(child: Padding(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children:[
-      Text('${r.moodEmoji} ${r.category}', style: const TextStyle(fontWeight: FontWeight.bold)),
-      Text(r.text),
-      const SizedBox(height:8),
-      Text(r.story.title, style: const TextStyle(fontWeight: FontWeight.bold)),
-      Text(r.story.quote),
-    ])))),
+    ...records.map((r)=>Card(child: InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => RecordDetailPage(record: r)),
+      ),
+      child: Padding(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children:[
+        Row(children: [
+          Text(r.moodEmoji, style: const TextStyle(fontSize: 28)),
+          const SizedBox(width: 8),
+          Expanded(child: Text('${r.moodLabel} · ${r.category}', style: const TextStyle(fontWeight: FontWeight.bold))),
+          const Icon(Icons.chevron_right),
+        ]),
+        const SizedBox(height: 10),
+        const Text('어떤 일이 있었나요?', style: TextStyle(fontSize: 12, color: Colors.black54)),
+        Text(r.text.trim().isEmpty ? '작성한 내용이 없습니다.' : r.text, maxLines: 2, overflow: TextOverflow.ellipsis),
+      ])),
+    ))),
   ]));
+}
+
+class RecordDetailPage extends StatelessWidget {
+  final EmotionRecord record;
+  const RecordDetailPage({super.key, required this.record});
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('감정 기록 상세')),
+    body: ListView(padding: const EdgeInsets.all(20), children: [
+      Card(child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(record.moodEmoji, style: const TextStyle(fontSize: 52)),
+          const SizedBox(height: 8),
+          Text(record.moodLabel, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          Text('${record.category} · ${record.createdAt.year}.${record.createdAt.month.toString().padLeft(2, '0')}.${record.createdAt.day.toString().padLeft(2, '0')}'),
+        ]),
+      )),
+      const SizedBox(height: 10),
+      const Text('어떤 일이 있었나요?', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+      const SizedBox(height: 8),
+      Card(child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Text(record.text.trim().isEmpty ? '작성한 내용이 없습니다.' : record.text),
+      )),
+      const SizedBox(height: 18),
+      const Text('그날 받은 이야기', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+      const SizedBox(height: 8),
+      Card(child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Chip(label: Text(record.story.theme)),
+          Text(record.story.title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 10),
+          Text(record.story.body),
+          const SizedBox(height: 12),
+          Text(record.story.quote, style: const TextStyle(fontWeight: FontWeight.bold)),
+        ]),
+      )),
+    ]),
+  );
 }
 
 class EmpathyPage extends StatelessWidget {
@@ -881,7 +1033,7 @@ class _PositivePageState extends State<PositivePage>{
         const SizedBox(height:14),
         Text(s.quote, style: const TextStyle(fontWeight:FontWeight.bold)),
       ]))),
-      FilledButton(onPressed:next, child:const Text('다른 긍정 보기')),
+      FilledButton(onPressed:(){ unawaited(AppAudioService.instance.playButton()); next(); }, child:const Text('다른 긍정 보기')),
     ]));
   }
 }
@@ -889,10 +1041,12 @@ class _PositivePageState extends State<PositivePage>{
 class SettingsPage extends StatelessWidget {
   final String nickname;
   final bool darkMode,effectSound,backgroundMusic;
+  final double effectVolume,backgroundVolume;
   final String storyStyle;
   final ValueChanged<bool> onDarkMode,onEffectSound,onBackgroundMusic;
+  final ValueChanged<double> onEffectVolume,onBackgroundVolume;
   final ValueChanged<String> onStoryStyle;
-  const SettingsPage({super.key,required this.nickname,required this.darkMode,required this.effectSound,required this.backgroundMusic,required this.storyStyle,required this.onDarkMode,required this.onEffectSound,required this.onBackgroundMusic,required this.onStoryStyle});
+  const SettingsPage({super.key,required this.nickname,required this.darkMode,required this.effectSound,required this.backgroundMusic,required this.effectVolume,required this.backgroundVolume,required this.storyStyle,required this.onDarkMode,required this.onEffectSound,required this.onBackgroundMusic,required this.onEffectVolume,required this.onBackgroundVolume,required this.onStoryStyle});
   @override
   Widget build(BuildContext context)=>SafeArea(child:ListView(padding:const EdgeInsets.all(18),children:[
     const Text('설정',style:TextStyle(fontSize:26,fontWeight:FontWeight.bold)),
@@ -902,8 +1056,10 @@ class SettingsPage extends StatelessWidget {
     ])),
     Card(child:Column(children:[
       SwitchListTile(title:const Text('☀ 다크모드'),value:darkMode,onChanged:onDarkMode),
-      SwitchListTile(title:const Text('🔊 효과음'),subtitle:const Text('추후 음원 연결'),value:effectSound,onChanged:onEffectSound),
-      SwitchListTile(title:const Text('🎵 배경음악'),subtitle:const Text('추후 음원 연결'),value:backgroundMusic,onChanged:onBackgroundMusic),
+      SwitchListTile(title:const Text('🔊 효과음'),value:effectSound,onChanged:onEffectSound),
+      ListTile(title:const Text('효과음 음량'),subtitle:Slider(value:effectVolume,onChanged:effectSound ? onEffectVolume : null)),
+      SwitchListTile(title:const Text('🎵 배경음악'),value:backgroundMusic,onChanged:onBackgroundMusic),
+      ListTile(title:const Text('배경음악 음량'),subtitle:Slider(value:backgroundVolume,onChanged:backgroundMusic ? onBackgroundVolume : null)),
     ])),
     Card(child:Padding(padding:const EdgeInsets.all(12),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
       const Text('🌱 이야기 스타일',style:TextStyle(fontWeight:FontWeight.bold)),
