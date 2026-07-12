@@ -8,8 +8,8 @@ void main() {
 
     expect(find.text('공유하려면\n계정 연동이 필요합니다.'), findsOneWidget);
     expect(find.text('카카오로 계속하기'), findsOneWidget);
-    expect(find.text('Google로 계속하기'), findsOneWidget);
-    expect(find.text('Apple로 계속하기'), findsOneWidget);
+    expect(find.text('Google로 계속하기 (준비 중)'), findsOneWidget);
+    expect(find.text('Apple로 계속하기 (준비 중)'), findsOneWidget);
   });
 
   testWidgets('글쓰기 화면에는 페이지 숫자 표시가 없다', (tester) async {

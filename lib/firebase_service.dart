@@ -13,6 +13,7 @@ class AppFirebaseService {
   final _db = FirebaseFirestore.instance;
 
   String get userId => _auth.currentUser!.uid;
+  String? get currentUserId => _auth.currentUser?.uid;
   bool get hasLinkedAccount =>
       _auth.currentUser != null && !_auth.currentUser!.isAnonymous;
 
