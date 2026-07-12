@@ -34,7 +34,6 @@ class PositiveStory {
     required this.body,
     required this.quote,
   });
-
 }
 
 class EmotionRecord {
