@@ -542,6 +542,9 @@ class _AdSlot extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final titleColor = youtube && Theme.of(context).brightness == Brightness.light
+        ? Colors.black87
+        : color;
     return Semantics(
       label: label,
       button: true,
@@ -575,7 +578,7 @@ class _AdSlot extends StatelessWidget {
                   title,
                   key: ValueKey(title),
                   style: TextStyle(
-                      color: color, fontSize: 13, fontWeight: FontWeight.bold),
+                      color: titleColor, fontSize: 13, fontWeight: FontWeight.bold),
                 ),
               ),
             ])),
@@ -1015,6 +1018,7 @@ class _WritingFlowState extends State<WritingFlow> {
                   isDark: Theme.of(context).brightness == Brightness.dark,
                 ),
                 child: Container(
+                  key: const ValueKey('writing-canvas'),
                   decoration: BoxDecoration(
                     border: Border.all(
                         color: Theme.of(context).brightness == Brightness.dark
@@ -1040,7 +1044,6 @@ class _WritingFlowState extends State<WritingFlow> {
                 child: FilledButton(
                     onPressed: completeDrawing, child: const Text('다 적었습니다'))),
           ]),
-          const SizedBox(height: 96),
         ]),
       );
 
@@ -1083,11 +1086,15 @@ class _WritingFlowState extends State<WritingFlow> {
           ),
           const SizedBox(height: 20),
           Expanded(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+            child: GridView.count(
+              key: const ValueKey('mood-grid'),
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisCount: 2,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+              childAspectRatio: 1.35,
               children: moods
-                  .map((m) => Expanded(
-                          child: Card(
+                  .map((m) => Card(
                         color: moodEmoji == m.$1
                             ? Theme.of(context).colorScheme.primaryContainer
                             : null,
@@ -1112,7 +1119,7 @@ class _WritingFlowState extends State<WritingFlow> {
                                             fontWeight: FontWeight.bold)))
                               ]),
                         ),
-                      )))
+                      ))
                   .toList(),
             ),
           ),
