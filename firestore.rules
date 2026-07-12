@@ -14,11 +14,21 @@ service cloud.firestore {
     match /nicknames/{nicknameKey} {
       allow read: if signedIn();
       allow create: if signedIn()
+        && request.resource.data.keys().hasOnly([
+          'nickname', 'ownerId', 'createdAt'
+        ])
         && request.resource.data.ownerId == request.auth.uid
-        && request.resource.data.nickname is string;
+        && request.resource.data.nickname is string
+        && request.resource.data.nickname.size() >= 2
+        && request.resource.data.nickname.size() <= 12
+        && request.resource.data.createdAt == request.time;
       allow update: if signedIn()
         && resource.data.ownerId == request.auth.uid
-        && request.resource.data.ownerId == request.auth.uid;
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['createdAt'])
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.nickname == resource.data.nickname
+        && request.resource.data.createdAt == request.time;
       allow delete: if false;
     }
 
