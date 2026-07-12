@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'audio_service.dart';
 import 'data/positive_stories.dart';
@@ -123,6 +124,8 @@ class AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<AppShell> {
+  static const _nicknamePreferenceKey = 'chameulin_nickname';
+  SharedPreferencesAsync? _preferences;
   String? nickname;
   int tabIndex = 0;
   String currentUserId = 'connecting';
@@ -133,14 +136,39 @@ class _AppShellState extends State<AppShell> {
   @override
   void initState() {
     super.initState();
-    unawaited(_connectFirebase());
+    unawaited(_initialize());
   }
 
-  Future<void> _connectFirebase() async {
+  Future<void> _initialize() async {
+    String? localNickname;
+    try {
+      _preferences = SharedPreferencesAsync();
+      localNickname = await _preferences?.getString(_nicknamePreferenceKey);
+    } catch (error) {
+      debugPrint('Local nickname storage unavailable: $error');
+    }
+    if (mounted && localNickname != null) {
+      setState(() => nickname = localNickname);
+    }
+    await _connectFirebase(localNickname);
+  }
+
+  Future<void> _connectFirebase(String? localNickname) async {
     if (Firebase.apps.isEmpty) return;
     try {
       final userId = await AppFirebaseService.instance.signIn();
-      final savedNickname = await AppFirebaseService.instance.loadNickname();
+      var savedNickname = await AppFirebaseService.instance.loadNickname();
+      if (savedNickname == null && localNickname != null) {
+        final claimed = await AppFirebaseService.instance.claimNickname(
+          localNickname,
+        );
+        if (claimed) {
+          savedNickname = localNickname;
+        } else {
+          await _preferences?.remove(_nicknamePreferenceKey);
+          if (mounted) setState(() => nickname = null);
+        }
+      }
       final savedRecords = await AppFirebaseService.instance.loadRecords();
       if (!mounted) return;
       setState(() {
@@ -179,6 +207,10 @@ class _AppShellState extends State<AppShell> {
     if (nickname == null) {
       return SplashNicknameFlow(onDone: (value) {
         setState(() => nickname = value);
+        final preferences = _preferences;
+        if (preferences != null) {
+          unawaited(preferences.setString(_nicknamePreferenceKey, value));
+        }
         unawaited(AppAudioService.instance.setBgm(AppBgm.home));
       });
     }
@@ -457,7 +489,12 @@ class _AdSlot extends StatelessWidget {
 
 class SplashNicknameFlow extends StatefulWidget {
   final ValueChanged<String> onDone;
-  const SplashNicknameFlow({super.key, required this.onDone});
+  final Future<bool> Function(String nickname)? claimNickname;
+  const SplashNicknameFlow({
+    super.key,
+    required this.onDone,
+    this.claimNickname,
+  });
 
   @override
   State<SplashNicknameFlow> createState() => _SplashNicknameFlowState();
@@ -469,6 +506,7 @@ class _SplashNicknameFlowState extends State<SplashNicknameFlow> {
   Timer? _timer;
   String? nicknameError;
   bool checkingNickname = false;
+  bool canStartOffline = false;
 
   @override
   void initState() {
@@ -491,9 +529,11 @@ class _SplashNicknameFlowState extends State<SplashNicknameFlow> {
     setState(() {
       checkingNickname = true;
       nicknameError = null;
+      canStartOffline = false;
     });
     try {
-      final available = await AppFirebaseService.instance.claimNickname(nick);
+      final available = await (widget.claimNickname ??
+          AppFirebaseService.instance.claimNickname)(nick);
       if (!mounted) return;
       if (!available) {
         setState(() {
@@ -506,14 +546,22 @@ class _SplashNicknameFlowState extends State<SplashNicknameFlow> {
       if (!mounted) return;
       setState(() {
         checkingNickname = false;
-        nicknameError = '닉네임을 확인하지 못했습니다. 잠시 후 다시 시도해주세요.';
+        canStartOffline = true;
+        nicknameError = '닉네임 서버에 연결할 수 없습니다.';
       });
       return;
     }
+    _finish(nick);
+  }
+
+  void _finish(String nickname) {
     setState(() => step = 2);
     unawaited(AppAudioService.instance.playComplete());
     _timer?.cancel();
-    _timer = Timer(const Duration(milliseconds: 2500), () => widget.onDone(nick));
+    _timer = Timer(
+      const Duration(milliseconds: 2500),
+      () => widget.onDone(nickname),
+    );
   }
 
   @override
@@ -563,7 +611,10 @@ class _SplashNicknameFlowState extends State<SplashNicknameFlow> {
             TextField(
               controller: controller,
               maxLength: 12,
-              onChanged: (_) => setState(() => nicknameError = null),
+              onChanged: (_) => setState(() {
+                nicknameError = null;
+                canStartOffline = false;
+              }),
               decoration: InputDecoration(
                 hintText: '예) 화가많은화가',
                 errorText: nicknameError,
@@ -585,6 +636,22 @@ class _SplashNicknameFlowState extends State<SplashNicknameFlow> {
                 ),
               ),
             ),
+            if (canStartOffline) ...[
+              const SizedBox(height: 10),
+              const Text(
+                '인터넷 연결 후 닉네임 중복 확인을 다시 진행합니다.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton(
+                onPressed: () => _finish(controller.text.trim()),
+                child: const SizedBox(
+                  width: double.infinity,
+                  child: Center(child: Text('오프라인으로 시작하기')),
+                ),
+              ),
+            ],
           ]),
         ),
       ),
