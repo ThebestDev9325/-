@@ -24,7 +24,7 @@ class AppAudioService {
   bool effectEnabled = true;
   bool backgroundEnabled = true;
   double effectVolume = .24;
-  double backgroundVolume = .045;
+  double backgroundVolume = .20;
 
   Future<void> initialize() async {
     final session = await AudioSession.instance;
@@ -44,7 +44,9 @@ class AppAudioService {
       if (event.begin) {
         _resumeAfterInterruption = _bgmPlayer.playing;
         unawaited(_bgmPlayer.pause());
-      } else if (_resumeAfterInterruption && backgroundEnabled && _currentBgm != null) {
+      } else if (_resumeAfterInterruption &&
+          backgroundEnabled &&
+          _currentBgm != null) {
         _resumeAfterInterruption = false;
         unawaited(_bgmPlayer.play());
       }

@@ -10,7 +10,6 @@ void main() {
     expect(find.text('카카오로 계속하기'), findsOneWidget);
     expect(find.text('Google로 계속하기'), findsOneWidget);
     expect(find.text('Apple로 계속하기'), findsOneWidget);
-    expect(find.textContaining('실제 가입은 진행되지 않습니다'), findsOneWidget);
   });
 
   testWidgets('글쓰기 화면에는 페이지 숫자 표시가 없다', (tester) async {

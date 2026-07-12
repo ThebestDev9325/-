@@ -13,6 +13,8 @@ class AppFirebaseService {
   final _db = FirebaseFirestore.instance;
 
   String get userId => _auth.currentUser!.uid;
+  bool get hasLinkedAccount =>
+      _auth.currentUser != null && !_auth.currentUser!.isAnonymous;
 
   Future<String> signIn() async {
     final current = _auth.currentUser;
@@ -99,9 +101,11 @@ class AppFirebaseService {
       final snapshot = await transaction.get(ref);
       if (!snapshot.exists) return;
       final data = snapshot.data()!;
-      final reactedBy = List<String>.from(data['reactedBy'] as List? ?? const []);
+      final reactedBy =
+          List<String>.from(data['reactedBy'] as List? ?? const []);
       if (reactedBy.contains(userId) || data['ownerId'] == userId) return;
-      final reactions = List<int>.from(data['reactions'] as List? ?? const [0, 0, 0]);
+      final reactions =
+          List<int>.from(data['reactions'] as List? ?? const [0, 0, 0]);
       reactions[reactionIndex]++;
       transaction.update(ref, {
         'reactions': reactions,
@@ -116,7 +120,8 @@ class AppFirebaseService {
       final snapshot = await transaction.get(ref);
       if (!snapshot.exists) return;
       final data = snapshot.data()!;
-      final reportedBy = List<String>.from(data['reportedBy'] as List? ?? const []);
+      final reportedBy =
+          List<String>.from(data['reportedBy'] as List? ?? const []);
       if (reportedBy.contains(userId)) return;
       transaction.update(ref, {
         'reportCount': FieldValue.increment(1),
@@ -156,7 +161,45 @@ class AppFirebaseService {
     });
   }
 
-  EmotionRecord _recordFromDoc(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
+  Future<void> deleteMyData() async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+    final records =
+        await _db.collection('users').doc(user.uid).collection('records').get();
+    final shared = await _db
+        .collection('sharedPosts')
+        .where('ownerId', isEqualTo: user.uid)
+        .get();
+    final refs = <DocumentReference>[
+      ...records.docs.map((d) => d.reference),
+      ...shared.docs.map((d) => d.reference)
+    ];
+    for (var start = 0; start < refs.length; start += 450) {
+      final batch = _db.batch();
+      for (final ref in refs.skip(start).take(450)) {
+        batch.delete(ref);
+      }
+      await batch.commit();
+    }
+  }
+
+  Future<void> deleteLinkedAccount() async {
+    final user = _auth.currentUser;
+    if (user == null || user.isAnonymous) return;
+    final userDoc = await _db.collection('users').doc(user.uid).get();
+    final nickname = userDoc.data()?['nickname'] as String?;
+    await deleteMyData();
+    final batch = _db.batch()..delete(userDoc.reference);
+    if (nickname != null && nickname.trim().isNotEmpty) {
+      batch.delete(
+          _db.collection('nicknames').doc(nickname.trim().toLowerCase()));
+    }
+    await batch.commit();
+    await user.delete();
+  }
+
+  EmotionRecord _recordFromDoc(
+      QueryDocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data();
     return EmotionRecord(
       id: doc.id,
