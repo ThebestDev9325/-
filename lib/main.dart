@@ -991,18 +991,21 @@ class _WritingFlowState extends State<WritingFlow> {
   }
 
   Widget _drawPage() => Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('참을 인을\n직접 써보세요.',
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton.icon(
+          Row(key: const ValueKey('writing-header'), children: [
+            const Expanded(child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text('참을인을 직접 써보세요.', maxLines: 1,
+                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+            )),
+            const SizedBox(width: 6),
+            TextButton.icon(
                 onPressed: showStrokeOrder,
                 icon: const Icon(Icons.animation),
                 label: const Text('획순 보기')),
-          ),
+          ]),
           const SizedBox(height: 8),
           Expanded(
             child: GestureDetector(
@@ -1858,32 +1861,46 @@ class _PositivePageState extends State<PositivePage> {
   Widget build(BuildContext context) {
     final s = positiveStories[index];
     return SafeArea(
-        child: ListView(padding: const EdgeInsets.all(20), children: [
-      const Text('오늘의 긍정',
-          style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
-      const SizedBox(height: 20),
-      Card(
-          child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(s.title,
-                        style: const TextStyle(
-                            fontSize: 27, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 12),
-                    Text(s.body,
-                        style: const TextStyle(fontSize: 16, height: 1.65)),
-                    const SizedBox(height: 14),
-                    Text(s.quote,
-                        style: const TextStyle(fontWeight: FontWeight.bold)),
-                  ]))),
-      FilledButton(
-          onPressed: () {
-            unawaited(AppAudioService.instance.playButton());
-            next();
-          },
-          child: const Text('다른 긍정 보기')),
+        child: Column(children: [
+      Expanded(child: ListView(
+        key: const ValueKey('positive-story-scroll'),
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+        children: [
+          const Text('오늘의 긍정',
+              style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 20),
+          Card(
+              child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(s.title,
+                            style: const TextStyle(
+                                fontSize: 27, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 12),
+                        Text(s.body,
+                            style: const TextStyle(fontSize: 16, height: 1.65)),
+                        const SizedBox(height: 14),
+                        Text(s.quote,
+                            style: const TextStyle(fontWeight: FontWeight.bold)),
+                      ]))),
+        ],
+      )),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+        child: SizedBox(
+          key: const ValueKey('positive-next-button'),
+          width: double.infinity,
+          height: 52,
+          child: FilledButton(
+              onPressed: () {
+                unawaited(AppAudioService.instance.playButton());
+                next();
+              },
+              child: const Text('다른 긍정 보기')),
+        ),
+      ),
     ]));
   }
 }

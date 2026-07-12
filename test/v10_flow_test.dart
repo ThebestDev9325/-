@@ -18,6 +18,6 @@ void main() {
     ));
 
     expect(find.text('1 / 5'), findsNothing);
-    expect(find.text('참을 인을\n직접 써보세요.'), findsOneWidget);
+    expect(find.text('참을인을 직접 써보세요.'), findsOneWidget);
   });
 }
