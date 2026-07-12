@@ -144,6 +144,7 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   String? nickname;
+  String? linkedAccountLabel;
   int tabIndex = 0;
   String currentUserId = 'connecting';
   final records = <EmotionRecord>[];
@@ -166,9 +167,11 @@ class _AppShellState extends State<AppShell> {
       final userId = await AppFirebaseService.instance.signIn();
       var savedNickname = await AppFirebaseService.instance.loadNickname();
       final savedRecords = await AppFirebaseService.instance.loadRecords();
+      final accountLabel = await AppFirebaseService.instance.linkedAccountLabel();
       if (!mounted) return;
       setState(() {
         currentUserId = userId;
+        linkedAccountLabel = accountLabel;
         if (savedNickname != null) nickname = savedNickname;
         records
           ..clear()
@@ -215,6 +218,7 @@ class _AppShellState extends State<AppShell> {
       const PositivePage(),
       SettingsPage(
         nickname: nickname,
+        linkedAccountLabel: linkedAccountLabel,
         darkMode: widget.darkMode,
         effectSound: widget.effectSound,
         backgroundMusic: widget.backgroundMusic,
@@ -273,6 +277,7 @@ class _AppShellState extends State<AppShell> {
       if (!mounted) return;
       setState(() {
         nickname = null;
+        linkedAccountLabel = null;
         records.clear();
         sharedPosts.clear();
       });
@@ -307,6 +312,8 @@ class _AppShellState extends State<AppShell> {
     final activeNickname = AppFirebaseService.instance.hasLinkedAccount
         ? await AppFirebaseService.instance.loadNickname()
         : nickname;
+    final activeAccountLabel =
+        await AppFirebaseService.instance.linkedAccountLabel();
     if (!mounted) return;
     final record = EmotionRecord(
       id: DateTime.now().microsecondsSinceEpoch.toString(),
@@ -321,6 +328,7 @@ class _AppShellState extends State<AppShell> {
     setState(() {
       if (activeUserId != null) currentUserId = activeUserId;
       nickname = activeNickname;
+      linkedAccountLabel = activeAccountLabel;
       records.insert(0, record);
       if (result.shared) {
         sharedPosts.insert(
@@ -786,9 +794,10 @@ class HomePage extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(22),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('참을인',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 26),
+          Text('참을인',
+              style: TextStyle(fontSize: 34, fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.primary)),
+          const SizedBox(height: 16),
           const Text('내 마음을 위해,\n참을인 하나.',
               style: TextStyle(fontSize: 34, fontWeight: FontWeight.bold)),
           const SizedBox(height: 16),
@@ -2014,6 +2023,7 @@ class _PositivePageState extends State<PositivePage> {
 
 class SettingsPage extends StatelessWidget {
   final String? nickname;
+  final String? linkedAccountLabel;
   final bool darkMode, effectSound, backgroundMusic;
   final double effectVolume, backgroundVolume;
   final String storyStyle;
@@ -2024,6 +2034,7 @@ class SettingsPage extends StatelessWidget {
   const SettingsPage(
       {super.key,
       required this.nickname,
+      required this.linkedAccountLabel,
       required this.darkMode,
       required this.effectSound,
       required this.backgroundMusic,
@@ -2048,7 +2059,9 @@ class SettingsPage extends StatelessWidget {
           ListTile(
               title: const Text('닉네임'),
               subtitle: Text(nickname ?? '계정 연동 후 설정할 수 있어요')),
-          const ListTile(title: Text('연결 계정'), subtitle: Text('아직 연결된 계정 없음')),
+          ListTile(
+              title: const Text('연결 계정'),
+              subtitle: Text(linkedAccountLabel ?? '아직 연결된 계정 없음')),
         ])),
         Card(
             child: Column(children: [
