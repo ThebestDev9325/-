@@ -99,6 +99,37 @@ class AppFirebaseService {
     });
   }
 
+  Future<void> submitStoryFeedback(String storyId, String feedback) async {
+    final field = switch (feedback) {
+      '좋아요' => 'likes',
+      '잘 모르겠어요' => 'unsure',
+      '별로에요' => 'dislikes',
+      _ => null,
+    };
+    if (field == null) return;
+
+    final ref = _db.collection('storyFeedback').doc(storyId);
+    await _db.runTransaction((transaction) async {
+      final snapshot = await transaction.get(ref);
+      if (snapshot.exists) {
+        transaction.update(ref, {
+          field: FieldValue.increment(1),
+          'total': FieldValue.increment(1),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      } else {
+        transaction.set(ref, {
+          'storyId': storyId,
+          'likes': field == 'likes' ? 1 : 0,
+          'unsure': field == 'unsure' ? 1 : 0,
+          'dislikes': field == 'dislikes' ? 1 : 0,
+          'total': 1,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+    });
+  }
+
   EmotionRecord _recordFromDoc(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data();
     return EmotionRecord(
