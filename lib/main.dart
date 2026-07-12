@@ -2,17 +2,20 @@ import 'dart:async';
 import 'dart:math';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'audio_service.dart';
 import 'data/positive_stories.dart';
 import 'data/story_db.dart';
 import 'firebase_options.dart';
 import 'firebase_service.dart';
+import 'kakao_auth_service.dart';
 import 'models.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  KakaoSdk.init(nativeAppKey: '7a9530370e39ec27e50f8d38379a0d22');
   await AppAudioService.instance.initialize();
   runApp(const ChameulinApp());
 }
@@ -300,6 +303,11 @@ class _AppShellState extends State<AppShell> {
       unawaited(AppAudioService.instance.setBgm(AppBgm.home));
       return;
     }
+    final activeUserId = AppFirebaseService.instance.currentUserId;
+    final activeNickname = AppFirebaseService.instance.hasLinkedAccount
+        ? await AppFirebaseService.instance.loadNickname()
+        : nickname;
+    if (!mounted) return;
     final record = EmotionRecord(
       id: DateTime.now().microsecondsSinceEpoch.toString(),
       createdAt: DateTime.now(),
@@ -311,6 +319,8 @@ class _AppShellState extends State<AppShell> {
       shared: result.shared,
     );
     setState(() {
+      if (activeUserId != null) currentUserId = activeUserId;
+      nickname = activeNickname;
       records.insert(0, record);
       if (result.shared) {
         sharedPosts.insert(
@@ -1237,12 +1247,20 @@ class _WritingFlowState extends State<WritingFlow> {
                     backgroundColor: const Color(0xFFE6B84A),
                     foregroundColor: const Color(0xFF382B0A),
                   ),
-                  onPressed: () {
+                  onPressed: () async {
                     unawaited(AppAudioService.instance.playButton());
-                    Navigator.of(context).push(
+                    if (!AppFirebaseService.instance.hasLinkedAccount) {
+                      final linked = await Navigator.of(context).push<bool>(
                       MaterialPageRoute(
                           builder: (_) => AccountLinkPage(
                               onTabSelected: widget.onTabSelected)),
+                      );
+                      if (!mounted || linked != true) return;
+                    }
+                    Navigator.pop(
+                      context,
+                      WritingResult(textController.text, category, moodEmoji,
+                          moodLabel, story, true, storyFeedback),
                     );
                   },
                   child: const Text('공유하기'),
@@ -1252,16 +1270,49 @@ class _WritingFlowState extends State<WritingFlow> {
   }
 }
 
-class AccountLinkPage extends StatelessWidget {
+class AccountLinkPage extends StatefulWidget {
   const AccountLinkPage({super.key, this.onTabSelected});
   final ValueChanged<int>? onTabSelected;
+
+  @override
+  State<AccountLinkPage> createState() => _AccountLinkPageState();
+}
+
+class _AccountLinkPageState extends State<AccountLinkPage> {
+  bool signingIn = false;
+
+  Future<void> _signInWithKakao() async {
+    if (signingIn) return;
+    setState(() => signingIn = true);
+    try {
+      await KakaoAuthService.instance.signIn();
+      if (!mounted) return;
+      final nickname = await AppFirebaseService.instance.loadNickname();
+      if (!mounted) return;
+      if (nickname == null) {
+        final completed = await Navigator.of(context).push<bool>(
+          MaterialPageRoute(builder: (_) => const AccountNicknamePage()),
+        );
+        if (!mounted || completed != true) return;
+      }
+      Navigator.of(context).pop(true);
+    } catch (error) {
+      if (!mounted) return;
+      final message = error.toString().contains('CANCELED')
+          ? '카카오 로그인이 취소되었습니다.'
+          : '카카오 로그인에 실패했습니다. 잠시 후 다시 시도해주세요.';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    } finally {
+      if (mounted) setState(() => signingIn = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(),
       bottomNavigationBar:
-          AppBottomArea(selectedIndex: 3, onSelected: onTabSelected ?? (_) {}),
+          AppBottomArea(selectedIndex: 3, onSelected: widget.onTabSelected ?? (_) {}),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(24),
@@ -1276,38 +1327,38 @@ class AccountLinkPage extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             const Text(
-              '소중한 기록을 안전하게 지키고, 내가 공유한 글을 관리하기 위한 준비 단계입니다. 계정 가입 기능은 다음 업데이트에서 연결할 예정이에요.',
+              '카카오 계정으로 기록을 안전하게 보관하고, 내가 공유한 글을 관리할 수 있어요.',
               textAlign: TextAlign.center,
               style: TextStyle(height: 1.6),
             ),
             const SizedBox(height: 32),
             _accountButton(
-              context,
               icon: '💬',
               label: '카카오로 계속하기',
               color: const Color(0xFFFFE812),
               foreground: Colors.black87,
+              onPressed: signingIn ? null : _signInWithKakao,
             ),
             const SizedBox(height: 12),
             _accountButton(
-              context,
               icon: 'G',
-              label: 'Google로 계속하기',
+              label: 'Google로 계속하기 (준비 중)',
               color: Colors.white,
               foreground: Colors.black87,
               bordered: true,
+              onPressed: null,
             ),
             const SizedBox(height: 12),
             _accountButton(
-              context,
               icon: '●',
-              label: 'Apple로 계속하기',
+              label: 'Apple로 계속하기 (준비 중)',
               color: Colors.black,
               foreground: Colors.white,
+              onPressed: null,
             ),
             const SizedBox(height: 18),
             const Text(
-              '현재는 화면 미리보기 단계이며 실제 가입은 진행되지 않습니다.',
+              '현재 카카오 계정 연동을 지원합니다.',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 12, color: Colors.grey),
             ),
@@ -1317,13 +1368,13 @@ class AccountLinkPage extends StatelessWidget {
     );
   }
 
-  static Widget _accountButton(
-    BuildContext context, {
+  static Widget _accountButton({
     required String icon,
     required String label,
     required Color color,
     required Color foreground,
     bool bordered = false,
+    required VoidCallback? onPressed,
   }) {
     return SizedBox(
       height: 54,
@@ -1333,16 +1384,72 @@ class AccountLinkPage extends StatelessWidget {
           foregroundColor: foreground,
           side: bordered ? const BorderSide(color: Colors.black12) : null,
         ),
-        onPressed: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('계정 연동 기능은 다음 업데이트에서 제공됩니다.')),
-          );
-        },
+        onPressed: onPressed,
         icon: Text(icon, style: const TextStyle(fontWeight: FontWeight.bold)),
         label: Text(label),
       ),
     );
   }
+}
+
+class AccountNicknamePage extends StatefulWidget {
+  const AccountNicknamePage({super.key});
+  @override
+  State<AccountNicknamePage> createState() => _AccountNicknamePageState();
+}
+
+class _AccountNicknamePageState extends State<AccountNicknamePage> {
+  final controller = TextEditingController();
+  bool saving = false;
+  String? errorText;
+
+  Future<void> _save() async {
+    final nickname = controller.text.trim();
+    if (nickname.length < 2 || nickname.length > 12 ||
+        !RegExp(r'^[가-힣a-zA-Z0-9_]+$').hasMatch(nickname)) {
+      setState(() => errorText = '한글, 영문, 숫자, 밑줄로 2~12자를 입력해주세요.');
+      return;
+    }
+    setState(() { saving = true; errorText = null; });
+    try {
+      final claimed = await AppFirebaseService.instance.claimNickname(nickname);
+      if (!mounted) return;
+      if (!claimed) {
+        setState(() => errorText = '이미 사용 중인 닉네임입니다.');
+        return;
+      }
+      Navigator.of(context).pop(true);
+    } catch (_) {
+      if (mounted) setState(() => errorText = '닉네임을 저장하지 못했습니다. 다시 시도해주세요.');
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
+  }
+
+  @override
+  void dispose() { controller.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(),
+    body: SafeArea(child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text('계정에서 사용할\n닉네임을 정해주세요.', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 12),
+        const Text('공감하기와 내 공유에서 사용할 이름입니다.'),
+        const SizedBox(height: 24),
+        TextField(controller: controller, maxLength: 12, decoration: InputDecoration(
+          hintText: '예) 따뜻한마음', errorText: errorText, border: const OutlineInputBorder(),
+        )),
+        const Spacer(),
+        SizedBox(width: double.infinity, child: FilledButton(
+          onPressed: saving ? null : _save,
+          child: saving ? const SizedBox.square(dimension: 20, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('닉네임 사용하기'),
+        )),
+      ]),
+    )),
+  );
 }
 
 class DrawPainter extends CustomPainter {
