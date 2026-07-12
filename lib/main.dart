@@ -128,26 +128,7 @@ class _AppShellState extends State<AppShell> {
   String currentUserId = 'connecting';
   final records = <EmotionRecord>[];
   StreamSubscription<List<SharedPost>>? _postsSubscription;
-  final sharedPosts = <SharedPost>[
-    SharedPost(
-      id: 'sample-1',
-      ownerId: 'other-1',
-      category: '직장',
-      text: '회의에서 한마디 들은 뒤 하루 종일 기분이 상했습니다.',
-      moodEmoji: '😤',
-      createdAt: DateTime.now(),
-      reactions: [42, 11, 6],
-    ),
-    SharedPost(
-      id: 'sample-2',
-      ownerId: 'other-2',
-      category: '고객',
-      text: '무리한 요구를 반복해서 받아서 마음이 너무 힘들었습니다.',
-      moodEmoji: '🤬',
-      createdAt: DateTime.now(),
-      reactions: [88, 12, 4],
-    ),
-  ];
+  final sharedPosts = <SharedPost>[];
 
   @override
   void initState() {
@@ -159,10 +140,12 @@ class _AppShellState extends State<AppShell> {
     if (Firebase.apps.isEmpty) return;
     try {
       final userId = await AppFirebaseService.instance.signIn();
+      final savedNickname = await AppFirebaseService.instance.loadNickname();
       final savedRecords = await AppFirebaseService.instance.loadRecords();
       if (!mounted) return;
       setState(() {
         currentUserId = userId;
+        if (savedNickname != null) nickname = savedNickname;
         records
           ..clear()
           ..addAll(savedRecords);
@@ -267,7 +250,12 @@ class _AppShellState extends State<AppShell> {
     await AppAudioService.instance.playButton();
     if (!mounted) return;
     final result = await Navigator.of(context).push<WritingResult>(
-      MaterialPageRoute(builder: (_) => WritingFlow(storyStyle: widget.storyStyle)),
+      MaterialPageRoute(
+        builder: (_) => WritingFlow(
+          storyStyle: widget.storyStyle,
+          todayWritingNumber: _todayWritingCount() + 1,
+        ),
+      ),
     );
     if (result == null) {
       unawaited(AppAudioService.instance.setBgm(AppBgm.home));
@@ -313,6 +301,16 @@ class _AppShellState extends State<AppShell> {
         );
       }
     }
+  }
+
+  int _todayWritingCount() {
+    final now = DateTime.now();
+    return records.where((record) {
+      final date = record.createdAt;
+      return date.year == now.year &&
+          date.month == now.month &&
+          date.day == now.day;
+    }).length;
   }
 
   void _react(SharedPost post, int reactionIndex) {
@@ -469,6 +467,8 @@ class _SplashNicknameFlowState extends State<SplashNicknameFlow> {
   int step = 0;
   final controller = TextEditingController();
   Timer? _timer;
+  String? nicknameError;
+  bool checkingNickname = false;
 
   @override
   void initState() {
@@ -478,8 +478,38 @@ class _SplashNicknameFlowState extends State<SplashNicknameFlow> {
     });
   }
 
-  void submit() {
-    final nick = controller.text.trim().isEmpty ? '화가많은화가' : controller.text.trim();
+  Future<void> submit() async {
+    final nick = controller.text.trim();
+    if (nick.length < 2 || nick.length > 12) {
+      setState(() => nicknameError = '닉네임은 2~12자로 입력해주세요.');
+      return;
+    }
+    if (!RegExp(r'^[가-힣a-zA-Z0-9_]+$').hasMatch(nick)) {
+      setState(() => nicknameError = '한글, 영문, 숫자, 밑줄만 사용할 수 있습니다.');
+      return;
+    }
+    setState(() {
+      checkingNickname = true;
+      nicknameError = null;
+    });
+    try {
+      final available = await AppFirebaseService.instance.claimNickname(nick);
+      if (!mounted) return;
+      if (!available) {
+        setState(() {
+          checkingNickname = false;
+          nicknameError = '이미 사용 중인 닉네임입니다.';
+        });
+        return;
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        checkingNickname = false;
+        nicknameError = '닉네임을 확인하지 못했습니다. 잠시 후 다시 시도해주세요.';
+      });
+      return;
+    }
     setState(() => step = 2);
     unawaited(AppAudioService.instance.playComplete());
     _timer?.cancel();
@@ -530,9 +560,31 @@ class _SplashNicknameFlowState extends State<SplashNicknameFlow> {
             const SizedBox(height: 12),
             const Text('실명 대신 앱 안에서만 사용할 이름입니다.'),
             const SizedBox(height: 28),
-            TextField(controller: controller, decoration: const InputDecoration(hintText: '예) 화가많은화가', border: OutlineInputBorder())),
+            TextField(
+              controller: controller,
+              maxLength: 12,
+              onChanged: (_) => setState(() => nicknameError = null),
+              decoration: InputDecoration(
+                hintText: '예) 화가많은화가',
+                errorText: nicknameError,
+                border: const OutlineInputBorder(),
+              ),
+            ),
             const Spacer(),
-            FilledButton(onPressed: submit, child: const SizedBox(width: double.infinity, child: Center(child: Text('시작하기')))),
+            FilledButton(
+              onPressed: checkingNickname ? null : submit,
+              child: SizedBox(
+                width: double.infinity,
+                child: Center(
+                  child: checkingNickname
+                      ? const SizedBox.square(
+                          dimension: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('시작하기'),
+                ),
+              ),
+            ),
           ]),
         ),
       ),
@@ -552,7 +604,7 @@ class HomePage extends StatelessWidget {
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const Text('참을인', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
           const SizedBox(height: 26),
-          const Text('후회할 말 전에\n참을 인 하나.', style: TextStyle(fontSize: 34, fontWeight: FontWeight.bold)),
+          const Text('내 마음을 위해,\n참을인 하나.', style: TextStyle(fontSize: 34, fontWeight: FontWeight.bold)),
           const Spacer(),
           Container(
             height: 280,
@@ -592,7 +644,12 @@ class WritingResult {
 
 class WritingFlow extends StatefulWidget {
   final String storyStyle;
-  const WritingFlow({super.key, required this.storyStyle});
+  final int todayWritingNumber;
+  const WritingFlow({
+    super.key,
+    required this.storyStyle,
+    this.todayWritingNumber = 1,
+  });
   @override
   State<WritingFlow> createState() => _WritingFlowState();
 }
@@ -609,9 +666,18 @@ class _WritingFlowState extends State<WritingFlow> {
   String? storyFeedback;
   int strokeIndex = 0;
   Timer? strokeTimer;
+  bool thirdWritingMessageShown = false;
 
   final categories = const ['직장', '고객', '가족', '연인', '친구', '타인', '나 자신', '기타'];
   final moods = const [('🤬','폭발 직전'), ('😤','많이 화남'), ('😐','답답함'), ('🙂','조금 괜찮음')];
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    for (var i = 1; i <= 7; i++) {
+      precacheImage(AssetImage('assets/stroke/stroke_$i.png'), context);
+    }
+  }
 
   void next() {
     if (page == 2) selectedStory = recommendStory(textController.text, category, widget.storyStyle);
@@ -642,13 +708,53 @@ class _WritingFlowState extends State<WritingFlow> {
         });
         return AlertDialog(
           title: const Text('忍 획순 보기'),
-          content: Image.asset('assets/stroke/stroke_${strokeIndex + 1}.png', width: 240, height: 240, fit: BoxFit.contain),
+          content: SizedBox.square(
+            dimension: 240,
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 180),
+              switchInCurve: Curves.easeOut,
+              switchOutCurve: Curves.easeIn,
+              child: Image.asset(
+                'assets/stroke/stroke_${strokeIndex + 1}.png',
+                key: ValueKey(strokeIndex),
+                width: 240,
+                height: 240,
+                fit: BoxFit.contain,
+                gaplessPlayback: true,
+              ),
+            ),
+          ),
           actions: [
             TextButton(onPressed: () { strokeTimer?.cancel(); strokeTimer = null; Navigator.pop(ctx); }, child: const Text('닫기')),
           ],
         );
       }),
     );
+  }
+
+  Future<void> completeDrawing() async {
+    if (widget.todayWritingNumber == 3 && !thirdWritingMessageShown) {
+      thirdWritingMessageShown = true;
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          icon: const Text('🌿', style: TextStyle(fontSize: 38)),
+          title: const Text('오늘 세 번째 참을인을 쓰셨네요.'),
+          content: const Text(
+            '오늘 주변이 조금 시끄러웠나 봅니다.\n그만큼 마음을 지키려고 애쓴 당신도 토닥여 주세요.',
+            textAlign: TextAlign.center,
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('마음 돌보기'),
+            ),
+          ],
+        ),
+      );
+      if (!mounted) return;
+    }
+    next();
   }
 
   @override
@@ -662,7 +768,7 @@ class _WritingFlowState extends State<WritingFlow> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('${page + 1} / 5')),
+      appBar: AppBar(),
       bottomNavigationBar: const BottomAdSlots(),
       body: PageView(
         controller: pageController,
@@ -709,7 +815,7 @@ class _WritingFlowState extends State<WritingFlow> {
       Row(children: [
         Expanded(child: OutlinedButton(onPressed: () => setState(points.clear), child: const Text('지우기'))),
         const SizedBox(width: 10),
-        Expanded(child: FilledButton(onPressed: next, child: const Text('다 적었습니다'))),
+        Expanded(child: FilledButton(onPressed: completeDrawing, child: const Text('다 적었습니다'))),
       ]),
       const SizedBox(height: 96),
     ]),
@@ -787,6 +893,11 @@ class _WritingFlowState extends State<WritingFlow> {
               padding: const EdgeInsets.symmetric(horizontal: 2),
               visualDensity: VisualDensity.compact,
               selected: storyFeedback == option,
+              selectedColor: switch (option) {
+                '좋아요' => const Color(0xFFCFE8B5),
+                '잘 모르겠어요' => const Color(0xFFFFE8A8),
+                _ => const Color(0xFFF2CBC5),
+              },
               onSelected: (_) => setState(() => storyFeedback = option),
             ),
           ),
@@ -811,9 +922,110 @@ class _WritingFlowState extends State<WritingFlow> {
       Card(child: Padding(padding: const EdgeInsets.all(18), child: Column(children: [
         const Text('공유하기', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
         const Text('익명으로 공유하고 공감을 받을 수 있습니다.'),
-        OutlinedButton(onPressed: () { unawaited(AppAudioService.instance.playComplete()); Navigator.pop(context, WritingResult(textController.text, category, moodEmoji, moodLabel, story, true, storyFeedback)); }, child: const Text('공유하기')),
+        FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: const Color(0xFFE6B84A),
+            foregroundColor: const Color(0xFF382B0A),
+          ),
+          onPressed: () {
+            unawaited(AppAudioService.instance.playButton());
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const AccountLinkPage()),
+            );
+          },
+          child: const Text('공유하기'),
+        ),
       ]))),
     ]);
+  }
+}
+
+class AccountLinkPage extends StatelessWidget {
+  const AccountLinkPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(24),
+          children: [
+            const Icon(Icons.lock_person_outlined, size: 58, color: Color(0xFF617A3F)),
+            const SizedBox(height: 18),
+            const Text(
+              '공유하려면\n계정 연동이 필요합니다.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              '소중한 기록을 안전하게 지키고, 내가 공유한 글을 관리하기 위한 준비 단계입니다. 계정 가입 기능은 다음 업데이트에서 연결할 예정이에요.',
+              textAlign: TextAlign.center,
+              style: TextStyle(height: 1.6),
+            ),
+            const SizedBox(height: 32),
+            _accountButton(
+              context,
+              icon: '💬',
+              label: '카카오로 계속하기',
+              color: const Color(0xFFFFE812),
+              foreground: Colors.black87,
+            ),
+            const SizedBox(height: 12),
+            _accountButton(
+              context,
+              icon: 'G',
+              label: 'Google로 계속하기',
+              color: Colors.white,
+              foreground: Colors.black87,
+              bordered: true,
+            ),
+            const SizedBox(height: 12),
+            _accountButton(
+              context,
+              icon: '●',
+              label: 'Apple로 계속하기',
+              color: Colors.black,
+              foreground: Colors.white,
+            ),
+            const SizedBox(height: 18),
+            const Text(
+              '현재는 화면 미리보기 단계이며 실제 가입은 진행되지 않습니다.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static Widget _accountButton(
+    BuildContext context, {
+    required String icon,
+    required String label,
+    required Color color,
+    required Color foreground,
+    bool bordered = false,
+  }) {
+    return SizedBox(
+      height: 54,
+      child: FilledButton.icon(
+        style: FilledButton.styleFrom(
+          backgroundColor: color,
+          foregroundColor: foreground,
+          side: bordered ? const BorderSide(color: Colors.black12) : null,
+        ),
+        onPressed: () {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('계정 연동 기능은 다음 업데이트에서 제공됩니다.')),
+          );
+        },
+        icon: Text(icon, style: const TextStyle(fontWeight: FontWeight.bold)),
+        label: Text(label),
+      ),
+    );
   }
 }
 
@@ -1043,6 +1255,16 @@ class EmpathyPage extends StatelessWidget {
           ));
     return SafeArea(child: ListView(padding: const EdgeInsets.all(18), children: [
       const Text('공감하기', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
+      if (posts.isEmpty)
+        const Card(
+          child: Padding(
+            padding: EdgeInsets.all(22),
+            child: Text(
+              '아직 공유된 사연이 없습니다.\n첫 번째 따뜻한 공감을 기다리고 있어요.',
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
       if(best != null) Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children:[
         const Chip(label: Text('오늘의 Best 사연')),
         Text('🤬 화난다 공감 ${best.first.reactions[0]}개', style: const TextStyle(fontWeight: FontWeight.bold)),
@@ -1106,7 +1328,6 @@ class _PositivePageState extends State<PositivePage>{
       const Text('오늘의 긍정', style: TextStyle(fontSize:26,fontWeight:FontWeight.bold)),
       const SizedBox(height:20),
       Card(child: Padding(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment:CrossAxisAlignment.start, children:[
-        Chip(label:Text('${s.icon} 긍정')),
         Text(s.title, style: const TextStyle(fontSize:27,fontWeight:FontWeight.bold)),
         const SizedBox(height:12),
         Text(s.body, style: const TextStyle(fontSize:16, height:1.65)),

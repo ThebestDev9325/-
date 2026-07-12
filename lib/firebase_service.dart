@@ -20,6 +20,32 @@ class AppFirebaseService {
     return (await _auth.signInAnonymously()).user!.uid;
   }
 
+  Future<String?> loadNickname() async {
+    await signIn();
+    final snapshot = await _db.collection('users').doc(userId).get();
+    return snapshot.data()?['nickname'] as String?;
+  }
+
+  Future<bool> claimNickname(String nickname) async {
+    await signIn();
+    final key = nickname.trim().toLowerCase();
+    final nicknameRef = _db.collection('nicknames').doc(key);
+    final userRef = _db.collection('users').doc(userId);
+    return _db.runTransaction((transaction) async {
+      final snapshot = await transaction.get(nicknameRef);
+      if (snapshot.exists && snapshot.data()?['ownerId'] != userId) {
+        return false;
+      }
+      transaction.set(nicknameRef, {
+        'nickname': nickname,
+        'ownerId': userId,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      transaction.set(userRef, {'nickname': nickname}, SetOptions(merge: true));
+      return true;
+    });
+  }
+
   Future<List<EmotionRecord>> loadRecords() async {
     final snapshot = await _db
         .collection('users')
