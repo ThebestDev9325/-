@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'audio_service.dart';
 import 'data/positive_stories.dart';
 import 'data/story_db.dart';
@@ -246,7 +247,7 @@ class _AppShellState extends State<AppShell> {
               unawaited(AppAudioService.instance.playButton());
               setState(() => tabIndex = i);
               unawaited(AppAudioService.instance.setBgm(
-                i == 0 ? AppBgm.home : (i == 4 ? AppBgm.positive : null),
+                i == 4 ? AppBgm.positive : AppBgm.home,
               ));
             },
             destinations: const [
@@ -266,7 +267,6 @@ class _AppShellState extends State<AppShell> {
 
   Future<void> _startWriting() async {
     await AppAudioService.instance.playButton();
-    await AppAudioService.instance.setBgm(null);
     if (!mounted) return;
     final result = await Navigator.of(context).push<WritingResult>(
       MaterialPageRoute(builder: (_) => WritingFlow(storyStyle: widget.storyStyle)),
@@ -335,26 +335,80 @@ class _AppShellState extends State<AppShell> {
   }
 }
 
-class BottomAdSlots extends StatelessWidget {
+class BottomAdSlots extends StatefulWidget {
   const BottomAdSlots({super.key});
 
   static const double height = 50;
 
   @override
+  State<BottomAdSlots> createState() => _BottomAdSlotsState();
+}
+
+class _BottomAdSlotsState extends State<BottomAdSlots> {
+  static const _naverAds = [
+    ('NAVER 검색', 'https://www.naver.com/'),
+    ('NAVER 뉴스', 'https://news.naver.com/'),
+    ('NAVER 지도', 'https://map.naver.com/'),
+  ];
+  Timer? _rotationTimer;
+  int _naverIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _rotationTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      if (mounted) {
+        setState(() => _naverIndex = (_naverIndex + 1) % _naverAds.length);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _rotationTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _open(String url) async {
+    final opened = await launchUrl(
+      Uri.parse(url),
+      mode: LaunchMode.externalApplication,
+    );
+    if (!opened && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('링크를 열 수 없습니다.')),
+      );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final naverAd = _naverAds[_naverIndex];
     return SafeArea(
       top: false,
       child: Container(
-        height: height,
+        height: BottomAdSlots.height,
         decoration: BoxDecoration(
           color: colors.surfaceContainerLowest,
           border: Border(top: BorderSide(color: colors.outlineVariant)),
         ),
         child: Row(children: [
-          const Expanded(child: _AdSlot(key: ValueKey('bottom-ad-slot-1'), label: '광고 영역 1')),
+          Expanded(child: _AdSlot(
+            key: const ValueKey('bottom-ad-slot-1'),
+            label: '광고 영역 1: ${naverAd.$1}',
+            title: naverAd.$1,
+            color: const Color(0xFF03C75A),
+            onTap: () => _open(naverAd.$2),
+          )),
           VerticalDivider(width: 1, thickness: 1, color: colors.outlineVariant),
-          const Expanded(child: _AdSlot(key: ValueKey('bottom-ad-slot-2'), label: '광고 영역 2')),
+          Expanded(child: _AdSlot(
+            key: const ValueKey('bottom-ad-slot-2'),
+            label: '광고 영역 2: Google',
+            title: 'Google',
+            color: const Color(0xFF4285F4),
+            onTap: () => _open('https://www.google.com/'),
+          )),
         ]),
       ),
     );
@@ -362,19 +416,45 @@ class BottomAdSlots extends StatelessWidget {
 }
 
 class _AdSlot extends StatelessWidget {
-  const _AdSlot({super.key, required this.label});
+  const _AdSlot({
+    super.key,
+    required this.label,
+    required this.title,
+    required this.color,
+    required this.onTap,
+  });
   final String label;
+  final String title;
+  final Color color;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     return Semantics(
       label: label,
-      child: Center(child: Text('광고', style: TextStyle(
-        color: colors.onSurfaceVariant.withValues(alpha: 0.55),
-        fontSize: 11,
-        letterSpacing: 1.2,
-      ))),
+      button: true,
+      child: InkWell(
+        onTap: onTap,
+        child: Center(child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('광고', style: TextStyle(
+              color: colors.onSurfaceVariant.withValues(alpha: 0.55),
+              fontSize: 9,
+            )),
+            const SizedBox(width: 7),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 350),
+              child: Text(
+                title,
+                key: ValueKey(title),
+                style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        )),
+      ),
     );
   }
 }
@@ -585,6 +665,7 @@ class _WritingFlowState extends State<WritingFlow> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text('${page + 1} / 5')),
+      bottomNavigationBar: const BottomAdSlots(),
       body: PageView(
         controller: pageController,
         physics: const NeverScrollableScrollPhysics(),
@@ -912,6 +993,7 @@ class RecordDetailPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('감정 기록 상세')),
+    bottomNavigationBar: const BottomAdSlots(),
     body: ListView(padding: const EdgeInsets.all(20), children: [
       Card(child: Padding(
         padding: const EdgeInsets.all(18),
