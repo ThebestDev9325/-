@@ -194,24 +194,30 @@ class _AppShellState extends State<AppShell> {
 
     return Scaffold(
       body: IndexedStack(index: tabIndex, children: pages),
-      bottomNavigationBar: NavigationBar(
-        indicatorColor: const [
-          Color(0xFFFFE1C2),
-          Color(0xFFE7D9FF),
-          Color(0xFFFFD8DE),
-          Color(0xFFD8ECCA),
-          Color(0xFFFFE9B8),
-          Color(0xFFDCE2EA),
-        ][tabIndex],
-        selectedIndex: tabIndex,
-        onDestinationSelected: (i) => setState(() => tabIndex = i),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.home_outlined, color: Color(0xFFE9823B)), selectedIcon: Icon(Icons.home, color: Color(0xFFD46B20)), label: '홈'),
-          NavigationDestination(icon: Icon(Icons.calendar_month_outlined, color: Color(0xFF8559B5)), selectedIcon: Icon(Icons.calendar_month, color: Color(0xFF6F419F)), label: '내 기록'),
-          NavigationDestination(icon: Icon(Icons.favorite_border, color: Color(0xFFE15064)), selectedIcon: Icon(Icons.favorite, color: Color(0xFFC9374E)), label: '공감'),
-          NavigationDestination(icon: Icon(Icons.eco_outlined, color: Color(0xFF55934E)), selectedIcon: Icon(Icons.eco, color: Color(0xFF3E7B38)), label: '내 공유'),
-          NavigationDestination(icon: Icon(Icons.wb_sunny_outlined, color: Color(0xFFE4A52C)), selectedIcon: Icon(Icons.wb_sunny, color: Color(0xFFC88A12)), label: '긍정'),
-          NavigationDestination(icon: Icon(Icons.settings_outlined, color: Color(0xFF6F7887)), selectedIcon: Icon(Icons.settings, color: Color(0xFF535D6D)), label: '설정'),
+      bottomNavigationBar: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          NavigationBar(
+            indicatorColor: const [
+              Color(0xFFFFE1C2),
+              Color(0xFFE7D9FF),
+              Color(0xFFFFD8DE),
+              Color(0xFFD8ECCA),
+              Color(0xFFFFE9B8),
+              Color(0xFFDCE2EA),
+            ][tabIndex],
+            selectedIndex: tabIndex,
+            onDestinationSelected: (i) => setState(() => tabIndex = i),
+            destinations: const [
+              NavigationDestination(icon: Icon(Icons.home_outlined, color: Color(0xFFE9823B)), selectedIcon: Icon(Icons.home, color: Color(0xFFD46B20)), label: '홈'),
+              NavigationDestination(icon: Icon(Icons.calendar_month_outlined, color: Color(0xFF8559B5)), selectedIcon: Icon(Icons.calendar_month, color: Color(0xFF6F419F)), label: '내 기록'),
+              NavigationDestination(icon: Icon(Icons.favorite_border, color: Color(0xFFE15064)), selectedIcon: Icon(Icons.favorite, color: Color(0xFFC9374E)), label: '공감'),
+              NavigationDestination(icon: Icon(Icons.eco_outlined, color: Color(0xFF55934E)), selectedIcon: Icon(Icons.eco, color: Color(0xFF3E7B38)), label: '내 공유'),
+              NavigationDestination(icon: Icon(Icons.wb_sunny_outlined, color: Color(0xFFE4A52C)), selectedIcon: Icon(Icons.wb_sunny, color: Color(0xFFC88A12)), label: '긍정'),
+              NavigationDestination(icon: Icon(Icons.settings_outlined, color: Color(0xFF6F7887)), selectedIcon: Icon(Icons.settings, color: Color(0xFF535D6D)), label: '설정'),
+            ],
+          ),
+          const BottomAdSlots(),
         ],
       ),
     );
@@ -270,6 +276,50 @@ class _AppShellState extends State<AppShell> {
     unawaited(AppFirebaseService.instance.report(post));
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('신고가 접수되었습니다. 운영자 검토 후 처리됩니다.')),
+    );
+  }
+}
+
+class BottomAdSlots extends StatelessWidget {
+  const BottomAdSlots({super.key});
+
+  static const double height = 50;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return SafeArea(
+      top: false,
+      child: Container(
+        height: height,
+        decoration: BoxDecoration(
+          color: colors.surfaceContainerLowest,
+          border: Border(top: BorderSide(color: colors.outlineVariant)),
+        ),
+        child: Row(children: [
+          const Expanded(child: _AdSlot(key: ValueKey('bottom-ad-slot-1'), label: '광고 영역 1')),
+          VerticalDivider(width: 1, thickness: 1, color: colors.outlineVariant),
+          const Expanded(child: _AdSlot(key: ValueKey('bottom-ad-slot-2'), label: '광고 영역 2')),
+        ]),
+      ),
+    );
+  }
+}
+
+class _AdSlot extends StatelessWidget {
+  const _AdSlot({super.key, required this.label});
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Semantics(
+      label: label,
+      child: Center(child: Text('광고', style: TextStyle(
+        color: colors.onSurfaceVariant.withValues(alpha: 0.55),
+        fontSize: 11,
+        letterSpacing: 1.2,
+      ))),
     );
   }
 }
