@@ -246,9 +246,7 @@ class _AppShellState extends State<AppShell> {
             onDestinationSelected: (i) {
               unawaited(AppAudioService.instance.playButton());
               setState(() => tabIndex = i);
-              unawaited(AppAudioService.instance.setBgm(
-                i == 4 ? AppBgm.positive : AppBgm.home,
-              ));
+              unawaited(AppAudioService.instance.setBgm(AppBgm.home));
             },
             destinations: const [
               NavigationDestination(icon: Icon(Icons.home_outlined, color: Color(0xFFE9823B)), selectedIcon: Icon(Icons.home, color: Color(0xFFD46B20)), label: '홈'),
@@ -1111,7 +1109,7 @@ class _PositivePageState extends State<PositivePage>{
         Chip(label:Text('${s.icon} 긍정')),
         Text(s.title, style: const TextStyle(fontSize:27,fontWeight:FontWeight.bold)),
         const SizedBox(height:12),
-        Text(s.richBody),
+        Text(s.body, style: const TextStyle(fontSize:16, height:1.65)),
         const SizedBox(height:14),
         Text(s.quote, style: const TextStyle(fontWeight:FontWeight.bold)),
       ]))),
