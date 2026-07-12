@@ -27,5 +27,13 @@ void main() {
     expect(first.width, second.width);
     expect(tester.getSize(find.byType(BottomAdSlots)).height, BottomAdSlots.height);
     expect(find.text('광고'), findsNWidgets(2));
+    expect(find.text('NAVER 검색'), findsOneWidget);
+    expect(find.text('Google'), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('NAVER 뉴스'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
   });
 }
