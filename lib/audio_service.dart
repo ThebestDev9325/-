@@ -9,7 +9,7 @@ class AppAudioService {
   AppAudioService._();
 
   static final instance = AppAudioService._();
-  static const homeBgmAsset = 'assets/audio/positive_rain_v6.mp3';
+  static const homeBgmAsset = 'assets/audio/meditation_pad_v20.mp3';
 
   final _bgmPlayer = AudioPlayer();
   final _brushPlayer = AudioPlayer();
