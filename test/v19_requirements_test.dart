@@ -25,7 +25,7 @@ void main() {
       AppAudioService.homeBgmAsset,
       'assets/audio/soft_rain_meditation.mp3',
     );
-    expect(AppAudioService.defaultBackgroundVolume, .50);
+    expect(AppAudioService.defaultBackgroundVolume, .20);
   });
 
   test('오늘의 베스트는 현지 자정 이후 작성된 사연만 대상으로 한다', () {

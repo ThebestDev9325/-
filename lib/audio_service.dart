@@ -10,7 +10,7 @@ class AppAudioService {
 
   static final instance = AppAudioService._();
   static const homeBgmAsset = 'assets/audio/soft_rain_meditation.mp3';
-  static const defaultBackgroundVolume = .50;
+  static const defaultBackgroundVolume = .20;
 
   final _bgmPlayer = AudioPlayer();
   final _brushPlayer = AudioPlayer();
@@ -22,6 +22,7 @@ class AppAudioService {
   StreamSubscription<void>? _noisySubscription;
   AppBgm? _currentBgm;
   bool _resumeAfterInterruption = false;
+  bool _appActive = true;
   bool effectEnabled = true;
   bool backgroundEnabled = true;
   double effectVolume = .24;
@@ -45,6 +46,7 @@ class AppAudioService {
         _resumeAfterInterruption = _bgmPlayer.playing;
         unawaited(_bgmPlayer.pause());
       } else if (_resumeAfterInterruption &&
+          _appActive &&
           backgroundEnabled &&
           _currentBgm != null) {
         _resumeAfterInterruption = false;
@@ -65,7 +67,7 @@ class AppAudioService {
         await _bgmPlayer.setLoopMode(LoopMode.one);
       }
     }
-    if (bgm == null || !backgroundEnabled) {
+    if (bgm == null || !backgroundEnabled || !_appActive) {
       await _bgmPlayer.pause();
     } else {
       unawaited(_bgmPlayer.play());
@@ -86,7 +88,7 @@ class AppAudioService {
 
   Future<void> setBackgroundEnabled(bool value) async {
     backgroundEnabled = value;
-    if (value && _currentBgm != null) {
+    if (value && _appActive && _currentBgm != null) {
       unawaited(_bgmPlayer.play());
     } else {
       await _bgmPlayer.pause();
@@ -100,6 +102,15 @@ class AppAudioService {
   Future<void> setBackgroundVolume(double value) async {
     backgroundVolume = value;
     await _bgmPlayer.setVolume(value);
+  }
+
+  Future<void> setAppActive(bool value) async {
+    _appActive = value;
+    if (value && backgroundEnabled && _currentBgm != null) {
+      unawaited(_bgmPlayer.play());
+    } else {
+      await _bgmPlayer.pause();
+    }
   }
 
   Future<void> playBrush() => _play(_brushPlayer, gain: .50);

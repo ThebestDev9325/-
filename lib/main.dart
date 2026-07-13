@@ -11,6 +11,7 @@ import 'firebase_options.dart';
 import 'firebase_service.dart';
 import 'kakao_auth_service.dart';
 import 'models.dart';
+import 'text_layout.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,13 +27,33 @@ class ChameulinApp extends StatefulWidget {
   State<ChameulinApp> createState() => _ChameulinAppState();
 }
 
-class _ChameulinAppState extends State<ChameulinApp> {
+class _ChameulinAppState extends State<ChameulinApp>
+    with WidgetsBindingObserver {
   bool darkMode = false;
   bool effectSound = true;
   bool backgroundMusic = true;
   double effectVolume = .24;
   double backgroundVolume = AppAudioService.defaultBackgroundVolume;
   String storyStyle = 'random';
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    unawaited(
+      AppAudioService.instance.setAppActive(state == AppLifecycleState.resumed),
+    );
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2046,14 +2067,14 @@ class _PositivePageState extends State<PositivePage> {
                   child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(s.title,
+                        Text(preventKoreanWordSplits(s.title),
                             style: const TextStyle(
                                 fontSize: 27, fontWeight: FontWeight.bold)),
                         const SizedBox(height: 12),
-                        Text(s.body,
+                        Text(preventKoreanWordSplits(s.body),
                             style: const TextStyle(fontSize: 16, height: 1.65)),
                         const SizedBox(height: 14),
-                        Text(s.quote,
+                        Text(preventKoreanWordSplits(s.quote),
                             style: const TextStyle(fontWeight: FontWeight.bold)),
                       ]))),
         ],

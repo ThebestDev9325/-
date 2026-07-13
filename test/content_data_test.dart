@@ -13,6 +13,13 @@ void main() {
       positiveStories.any((story) => story.quote.contains('의역')),
       isTrue,
     );
+    for (final story in positiveStories) {
+      expect(story.title, story.title.trim());
+      expect(story.body, story.body.trim());
+      expect(story.quote, story.quote.trim());
+      expect(story.body, isNot(contains('\n')));
+      expect(story.body, isNot(contains('  ')));
+    }
   });
 
   test('위로 이야기에는 주요 감정 상황이 포함된다', () {
