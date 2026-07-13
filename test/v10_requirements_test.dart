@@ -8,7 +8,10 @@ void main() {
   testWidgets('홈의 새 문구가 표시되고 이전 문구는 제거됐다', (tester) async {
     await tester.pumpWidget(MaterialApp(home: HomePage(onStart: () {})));
 
-    expect(find.text('내 마음을 위해,\n참을인 하나.'), findsOneWidget);
+    expect(find.text('내 마음을 위해'), findsOneWidget);
+    expect(find.text('참을인 하나'), findsOneWidget);
+    expect(find.textContaining('내 마음을 위해,'), findsNothing);
+    expect(find.textContaining('참을인 하나.'), findsNothing);
     expect(find.textContaining('후회할 말 전에'), findsNothing);
   });
 
