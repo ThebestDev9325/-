@@ -34,13 +34,17 @@ void main() {
     );
   });
 
-  testWidgets('조용한 밤의 위로 외 광고 영역은 비워 둔다', (tester) async {
+  testWidgets('두 유튜브 광고가 빈칸과 함께 10초마다 교대한다', (tester) async {
     await tester.pumpWidget(const MaterialApp(
         home: Scaffold(bottomNavigationBar: BottomAdSlots())));
     expect(find.text('조용한 밤의 위로'), findsOneWidget);
-    expect(find.text('NAVER 검색'), findsNothing);
     expect(find.text('어슬렁 개발'), findsNothing);
-    expect(find.text('Google'), findsNothing);
+    expect(find.text('광고'), findsNWidgets(2));
+    expect(find.byIcon(Icons.play_circle_fill), findsOneWidget);
+    await tester.pump(const Duration(seconds: 10));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('조용한 밤의 위로'), findsNothing);
+    expect(find.text('어슬렁 개발'), findsOneWidget);
     expect(find.text('광고'), findsNWidgets(2));
     expect(find.byIcon(Icons.play_circle_fill), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());

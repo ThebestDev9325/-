@@ -9,6 +9,7 @@ class AppAudioService {
   AppAudioService._();
 
   static final instance = AppAudioService._();
+  static const homeBgmAsset = 'assets/audio/positive_rain_v6.mp3';
 
   final _bgmPlayer = AudioPlayer();
   final _brushPlayer = AudioPlayer();
@@ -24,7 +25,7 @@ class AppAudioService {
   bool effectEnabled = true;
   bool backgroundEnabled = true;
   double effectVolume = .24;
-  double backgroundVolume = .20;
+  double backgroundVolume = .14;
 
   Future<void> initialize() async {
     final session = await AudioSession.instance;
@@ -62,7 +63,7 @@ class AppAudioService {
       _currentBgm = bgm;
       if (bgm != null) {
         final asset = bgm == AppBgm.home
-            ? 'assets/audio/home_forest_v6.mp3'
+            ? homeBgmAsset
             : 'assets/audio/positive_rain_v6.mp3';
         await _bgmPlayer.setAsset(asset);
         await _bgmPlayer.setLoopMode(LoopMode.one);

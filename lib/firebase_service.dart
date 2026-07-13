@@ -1,8 +1,21 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import 'data/story_db.dart';
 import 'models.dart';
+
+class ReportResult {
+  final int reportCount;
+  final bool removed;
+  final bool alreadyReported;
+
+  const ReportResult({
+    required this.reportCount,
+    required this.removed,
+    required this.alreadyReported,
+  });
+}
 
 class AppFirebaseService {
   AppFirebaseService._();
@@ -124,21 +137,16 @@ class AppFirebaseService {
     });
   }
 
-  Future<void> report(SharedPost post) async {
-    final ref = _db.collection('sharedPosts').doc(post.id);
-    await _db.runTransaction((transaction) async {
-      final snapshot = await transaction.get(ref);
-      if (!snapshot.exists) return;
-      final data = snapshot.data()!;
-      final reportedBy = List<String>.from(
-        data['reportedBy'] as List? ?? const [],
-      );
-      if (reportedBy.contains(userId)) return;
-      transaction.update(ref, {
-        'reportCount': FieldValue.increment(1),
-        'reportedBy': FieldValue.arrayUnion([userId]),
-      });
-    });
+  Future<ReportResult> report(SharedPost post) async {
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast3')
+        .httpsCallable('reportSharedPost');
+    final response = await callable.call(<String, dynamic>{'postId': post.id});
+    final data = Map<String, dynamic>.from(response.data as Map);
+    return ReportResult(
+      reportCount: data['reportCount'] as int? ?? post.reportCount,
+      removed: data['removed'] as bool? ?? false,
+      alreadyReported: data['alreadyReported'] as bool? ?? false,
+    );
   }
 
   Future<void> submitStoryFeedback(String storyId, String feedback) async {
@@ -232,6 +240,9 @@ class AppFirebaseService {
   SharedPost _postFromDoc(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data();
     final reactedBy = List<String>.from(data['reactedBy'] as List? ?? const []);
+    final reportedBy = List<String>.from(
+      data['reportedBy'] as List? ?? const [],
+    );
     return SharedPost(
       id: doc.id,
       ownerId: data['ownerId'] as String? ?? '',
@@ -242,6 +253,7 @@ class AppFirebaseService {
       reactions: List<int>.from(data['reactions'] as List? ?? const [0, 0, 0]),
       myReaction: reactedBy.contains(userId) ? 0 : null,
       reportCount: data['reportCount'] as int? ?? 0,
+      reportedByMe: reportedBy.contains(userId),
     );
   }
 

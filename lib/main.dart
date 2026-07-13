@@ -31,7 +31,7 @@ class _ChameulinAppState extends State<ChameulinApp> {
   bool effectSound = true;
   bool backgroundMusic = true;
   double effectVolume = .24;
-  double backgroundVolume = .20;
+  double backgroundVolume = .14;
   String storyStyle = 'random';
 
   @override
@@ -149,12 +149,25 @@ class _AppShellState extends State<AppShell> {
   String currentUserId = 'connecting';
   final records = <EmotionRecord>[];
   StreamSubscription<List<SharedPost>>? _postsSubscription;
+  Timer? _midnightTimer;
   final sharedPosts = <SharedPost>[];
 
   @override
   void initState() {
     super.initState();
+    _scheduleMidnightRefresh();
     unawaited(_initialize());
+  }
+
+  void _scheduleMidnightRefresh() {
+    _midnightTimer?.cancel();
+    final now = DateTime.now();
+    final nextMidnight = DateTime(now.year, now.month, now.day + 1);
+    _midnightTimer = Timer(nextMidnight.difference(now), () {
+      if (!mounted) return;
+      setState(() {});
+      _scheduleMidnightRefresh();
+    });
   }
 
   Future<void> _initialize() async {
@@ -199,6 +212,7 @@ class _AppShellState extends State<AppShell> {
   @override
   void dispose() {
     _postsSubscription?.cancel();
+    _midnightTimer?.cancel();
     super.dispose();
   }
 
@@ -273,21 +287,30 @@ class _AppShellState extends State<AppShell> {
       return;
     }
     try {
-      await AppFirebaseService.instance.deleteLinkedAccount();
+      await KakaoAuthService.instance.deleteAccount();
+      await _postsSubscription?.cancel();
+      _postsSubscription = null;
       if (!mounted) return;
       setState(() {
         nickname = null;
         linkedAccountLabel = null;
+        currentUserId = 'connecting';
         records.clear();
         sharedPosts.clear();
       });
+      await _connectFirebase();
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('회원탈퇴가 완료되었습니다.')),
       );
-    } catch (_) {
+    } catch (error) {
       if (mounted)
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('보안을 위해 다시 로그인한 뒤 탈퇴해주세요.')),
+          SnackBar(
+            content: Text(error.toString().contains('CANCELED')
+                ? '카카오 계정 확인이 취소되어 회원탈퇴를 중단했습니다.'
+                : '회원탈퇴를 완료하지 못했습니다. 잠시 후 다시 시도해주세요.'),
+          ),
         );
     }
   }
@@ -385,12 +408,32 @@ class _AppShellState extends State<AppShell> {
     unawaited(AppFirebaseService.instance.react(post, reactionIndex));
   }
 
-  void _report(SharedPost post) {
-    setState(() => post.reportCount++);
-    unawaited(AppFirebaseService.instance.report(post));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('신고가 접수되었습니다. 운영자 검토 후 처리됩니다.')),
-    );
+  Future<void> _report(SharedPost post) async {
+    try {
+      final result = await AppFirebaseService.instance.report(post);
+      if (!mounted) return;
+      setState(() {
+        post.reportedByMe = true;
+        post.reportCount = result.reportCount;
+        if (result.removed) {
+          sharedPosts.removeWhere((item) => item.id == post.id);
+        }
+      });
+      final message = result.removed
+          ? '신고가 5건 누적되어 공감 목록에서 자동으로 숨김 처리되었습니다.'
+          : result.alreadyReported
+              ? '이미 신고한 사연입니다.'
+              : '신고가 접수되었습니다. (${result.reportCount}/5)';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('신고를 접수하지 못했습니다. 다시 시도해주세요.')),
+        );
+      }
+    }
   }
 }
 
@@ -460,6 +503,23 @@ class BottomAdSlots extends StatefulWidget {
 }
 
 class _BottomAdSlotsState extends State<BottomAdSlots> {
+  Timer? _rotationTimer;
+  int _phase = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _rotationTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (mounted) setState(() => _phase = 1 - _phase);
+    });
+  }
+
+  @override
+  void dispose() {
+    _rotationTimer?.cancel();
+    super.dispose();
+  }
+
   Future<void> _open(String url) async {
     final opened = await launchUrl(
       Uri.parse(url),
@@ -487,20 +547,31 @@ class _BottomAdSlotsState extends State<BottomAdSlots> {
           Expanded(
               child: _AdSlot(
             key: const ValueKey('bottom-ad-slot-1'),
-            label: '광고 영역 1: 조용한 밤의 위로',
-            title: '조용한 밤의 위로',
+            label: _phase == 0 ? '광고 영역 좌측 1: 조용한 밤의 위로' : '광고 영역 좌측 2: 비어 있음',
+            title: _phase == 0 ? '조용한 밤의 위로' : '',
             color: Colors.white,
-            youtube: true,
-            background: const [Color(0xFF17283A), Color(0xFF526B56)],
-            onTap: () => _open('https://www.youtube.com/@slowhug'),
+            youtube: _phase == 0,
+            background: _phase == 0
+                ? const [Color(0xFF17283A), Color(0xFF526B56)]
+                : null,
+            onTap: _phase == 0
+                ? () => _open('https://www.youtube.com/@slowhug')
+                : null,
           )),
           VerticalDivider(width: 1, thickness: 1, color: colors.outlineVariant),
-          const Expanded(
+          Expanded(
               child: _AdSlot(
-            key: ValueKey('bottom-ad-slot-2'),
-            label: '광고 영역 2: 비어 있음',
-            title: '',
-            color: Colors.transparent,
+            key: const ValueKey('bottom-ad-slot-2'),
+            label: _phase == 0 ? '광고 영역 우측 1: 비어 있음' : '광고 영역 우측 2: 어슬렁 개발',
+            title: _phase == 0 ? '' : '어슬렁 개발',
+            color: Colors.white,
+            youtube: _phase == 1,
+            background: _phase == 1
+                ? const [Color(0xFF1D2733), Color(0xFF53606B)]
+                : null,
+            onTap: _phase == 1
+                ? () => _open('https://www.youtube.com/@kokom2574')
+                : null,
           )),
         ]),
       ),
@@ -1795,11 +1866,7 @@ class EmpathyPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final List<SharedPost>? best = posts.isEmpty
-        ? null
-        : ([...posts]..sort(
-            (a, b) => b.reactions[0].compareTo(a.reactions[0]),
-          ));
+    final best = bestPostForDay(posts, DateTime.now());
     return SafeArea(
         child: ListView(padding: const EdgeInsets.all(18), children: [
       const Text('공감하기',
@@ -1823,12 +1890,12 @@ class EmpathyPage extends StatelessWidget {
                     children: [
                       const Chip(label: Text('오늘의 Best 사연')),
                       Chip(
-                          label: Text(best.first.category.trim().isEmpty
+                          label: Text(best.category.trim().isEmpty
                               ? '기타'
-                              : best.first.category)),
-                      Text('🤬 화난다 공감 ${best.first.reactions[0]}개',
+                              : best.category)),
+                      Text('🤬 화난다 공감 ${best.reactions[0]}개',
                           style: const TextStyle(fontWeight: FontWeight.bold)),
-                      Text(best.first.text),
+                      Text(best.text),
                     ]))),
       ...posts.map((p) => SharedPostCard(
           post: p,
@@ -1884,10 +1951,29 @@ class SharedPostCard extends StatelessWidget {
                                   textAlign: TextAlign.center),
                             ))))),
             TextButton.icon(
-                onPressed: () => onReport(post),
+                onPressed: mine || post.reportedByMe
+                    ? null
+                    : () => onReport(post),
                 icon: const Icon(Icons.report, color: Colors.red),
-                label: const Text('신고')),
+                label: Text(post.reportedByMe ? '신고 완료' : '신고')),
           ])));
+}
+
+SharedPost? bestPostForDay(List<SharedPost> posts, DateTime now) {
+  final today = posts.where((post) {
+    final createdAt = post.createdAt.toLocal();
+    return createdAt.year == now.year &&
+        createdAt.month == now.month &&
+        createdAt.day == now.day;
+  }).toList();
+  if (today.isEmpty) return null;
+  today.sort((a, b) {
+    final reactionOrder = b.reactions[0].compareTo(a.reactions[0]);
+    return reactionOrder != 0
+        ? reactionOrder
+        : b.createdAt.compareTo(a.createdAt);
+  });
+  return today.first;
 }
 
 class MySharePage extends StatelessWidget {
