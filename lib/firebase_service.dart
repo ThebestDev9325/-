@@ -89,8 +89,9 @@ class AppFirebaseService {
   }
 
   Future<void> saveRecord(EmotionRecord record) async {
+    final ownerId = userId;
     final data = <String, Object?>{
-      'ownerId': userId,
+      'ownerId': ownerId,
       'createdAt': Timestamp.fromDate(record.createdAt),
       'category': record.category,
       'moodEmoji': record.moodEmoji,
@@ -101,7 +102,7 @@ class AppFirebaseService {
     };
     final batch = _db.batch();
     batch.set(
-      _db.collection('users').doc(userId).collection('records').doc(record.id),
+      _db.collection('users').doc(ownerId).collection('records').doc(record.id),
       data,
     );
     if (record.shared) {
