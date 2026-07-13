@@ -142,6 +142,7 @@ class AppShell extends StatefulWidget {
   final ValueChanged<bool> onBackgroundMusic;
   final ValueChanged<double> onEffectVolume;
   final ValueChanged<double> onBackgroundVolume;
+  final PlantProgressStore? plantStore;
 
   const AppShell({
     super.key,
@@ -155,6 +156,7 @@ class AppShell extends StatefulWidget {
     required this.onBackgroundMusic,
     required this.onEffectVolume,
     required this.onBackgroundVolume,
+    this.plantStore,
   });
 
   @override
@@ -170,10 +172,13 @@ class _AppShellState extends State<AppShell> {
   StreamSubscription<List<SharedPost>>? _postsSubscription;
   Timer? _midnightTimer;
   final sharedPosts = <SharedPost>[];
+  late final PlantProgressStore _plantStore;
+  int _plantResetVersion = 0;
 
   @override
   void initState() {
     super.initState();
+    _plantStore = widget.plantStore ?? SharedPreferencesPlantProgressStore();
     unawaited(AppAudioService.instance.setBgm(AppBgm.home));
     _scheduleMidnightRefresh();
     unawaited(_initialize());
@@ -241,7 +246,11 @@ class _AppShellState extends State<AppShell> {
   @override
   Widget build(BuildContext context) {
     final pages = [
-      HomePage(onStart: _startWriting),
+      HomePage(
+        key: ValueKey('home-plant-reset-$_plantResetVersion'),
+        onStart: _startWriting,
+        plantStore: _plantStore,
+      ),
       RecordsPage(records: records, onTabSelected: _selectTabFromRoute),
       EmpathyPage(
         posts: sharedPosts,
@@ -285,14 +294,18 @@ class _AppShellState extends State<AppShell> {
       if (currentUserId != 'connecting') {
         await AppFirebaseService.instance.deleteMyData();
       }
+      await _plantStore.clear();
       if (!mounted) return;
       setState(() {
         records.clear();
         sharedPosts.removeWhere((p) => p.ownerId == currentUserId);
+        _plantResetVersion++;
       });
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('내 기록과 공유 데이터가 삭제되었습니다.')));
+      ).showSnackBar(
+        const SnackBar(content: Text('내 기록, 공유 데이터와 화분이 초기화되었습니다.')),
+      );
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1015,22 +1028,25 @@ class _HomePageState extends State<HomePage>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              '참을인',
-              style: TextStyle(
-                fontSize: 34,
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-            ),
-            const SizedBox(height: 16),
             SizedBox(
-              height: 206,
+              height: 210,
               child: Stack(
                 children: [
-                  const Positioned(
+                  Positioned(
                     left: 0,
                     top: 0,
+                    child: Text(
+                      '참을인',
+                      style: TextStyle(
+                        fontSize: 34,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                  ),
+                  const Positioned(
+                    left: 0,
+                    top: 78,
                     child: SizedBox(
                       width: 248,
                       child: Column(
@@ -1066,7 +1082,7 @@ class _HomePageState extends State<HomePage>
                     top: 0,
                     child: SizedBox(
                       width: 150,
-                      height: 206,
+                      height: 210,
                       child: _WeekdayPlant(
                         date: _now,
                         stage: _stage,
@@ -1080,9 +1096,10 @@ class _HomePageState extends State<HomePage>
                 ],
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 8),
             Expanded(
               child: Container(
+                key: const ValueKey('home-writing-card'),
                 width: double.infinity,
                 decoration: BoxDecoration(
                   color: Theme.of(context).colorScheme.surfaceContainerLow,
@@ -1111,7 +1128,7 @@ class _HomePageState extends State<HomePage>
                 ),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             FilledButton(
               onPressed: widget.onStart,
               child: const SizedBox(
@@ -3053,7 +3070,7 @@ class SettingsPage extends StatelessWidget {
                   onPressed: () => _confirm(
                     context,
                     '내 데이터를 삭제할까요?',
-                    '휴대폰과 서버에 저장된 기록 및 공유 글이 삭제됩니다.',
+                    '휴대폰과 서버에 저장된 기록, 공유 글과 화분 성장이 삭제됩니다.',
                     onDeleteData,
                   ),
                   child: const Text('삭제'),
