@@ -3,13 +3,14 @@ import 'dart:async';
 import 'package:audio_session/audio_session.dart';
 import 'package:just_audio/just_audio.dart';
 
-enum AppBgm { home, positive }
+enum AppBgm { home }
 
 class AppAudioService {
   AppAudioService._();
 
   static final instance = AppAudioService._();
-  static const homeBgmAsset = 'assets/audio/meditation_pad_v20.mp3';
+  static const homeBgmAsset = 'assets/audio/soft_rain_meditation.mp3';
+  static const defaultBackgroundVolume = .50;
 
   final _bgmPlayer = AudioPlayer();
   final _brushPlayer = AudioPlayer();
@@ -25,7 +26,7 @@ class AppAudioService {
   bool effectEnabled = true;
   bool backgroundEnabled = true;
   double effectVolume = .24;
-  double backgroundVolume = .14;
+  double backgroundVolume = defaultBackgroundVolume;
 
   Future<void> initialize() async {
     final session = await AudioSession.instance;
@@ -62,10 +63,7 @@ class AppAudioService {
     if (_currentBgm != bgm) {
       _currentBgm = bgm;
       if (bgm != null) {
-        final asset = bgm == AppBgm.home
-            ? homeBgmAsset
-            : 'assets/audio/positive_rain_v6.mp3';
-        await _bgmPlayer.setAsset(asset);
+        await _bgmPlayer.setAsset(homeBgmAsset);
         await _bgmPlayer.setLoopMode(LoopMode.one);
       }
     }

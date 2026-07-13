@@ -31,7 +31,7 @@ class _ChameulinAppState extends State<ChameulinApp> {
   bool effectSound = true;
   bool backgroundMusic = true;
   double effectVolume = .24;
-  double backgroundVolume = .14;
+  double backgroundVolume = AppAudioService.defaultBackgroundVolume;
   String storyStyle = 'random';
 
   @override
@@ -155,6 +155,7 @@ class _AppShellState extends State<AppShell> {
   @override
   void initState() {
     super.initState();
+    unawaited(AppAudioService.instance.setBgm(AppBgm.home));
     _scheduleMidnightRefresh();
     unawaited(_initialize());
   }
