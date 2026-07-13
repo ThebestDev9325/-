@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'audio_service.dart';
+import 'daily_positive_store.dart';
+import 'data/daily_quotes.dart';
 import 'data/positive_stories.dart';
 import 'data/story_db.dart';
 import 'firebase_options.dart';
@@ -34,7 +36,6 @@ class _ChameulinAppState extends State<ChameulinApp>
   bool backgroundMusic = true;
   double effectVolume = .24;
   double backgroundVolume = AppAudioService.defaultBackgroundVolume;
-  String storyStyle = 'random';
 
   @override
   void initState() {
@@ -105,7 +106,6 @@ class _ChameulinAppState extends State<ChameulinApp>
         backgroundMusic: backgroundMusic,
         effectVolume: effectVolume,
         backgroundVolume: backgroundVolume,
-        storyStyle: storyStyle,
         onDarkMode: (v) => setState(() => darkMode = v),
         onEffectSound: (v) {
           setState(() => effectSound = v);
@@ -123,7 +123,6 @@ class _ChameulinAppState extends State<ChameulinApp>
           setState(() => backgroundVolume = v);
           unawaited(AppAudioService.instance.setBackgroundVolume(v));
         },
-        onStoryStyle: (v) => setState(() => storyStyle = v),
       ),
     );
   }
@@ -135,13 +134,11 @@ class AppShell extends StatefulWidget {
   final bool backgroundMusic;
   final double effectVolume;
   final double backgroundVolume;
-  final String storyStyle;
   final ValueChanged<bool> onDarkMode;
   final ValueChanged<bool> onEffectSound;
   final ValueChanged<bool> onBackgroundMusic;
   final ValueChanged<double> onEffectVolume;
   final ValueChanged<double> onBackgroundVolume;
-  final ValueChanged<String> onStoryStyle;
 
   const AppShell({
     super.key,
@@ -150,13 +147,11 @@ class AppShell extends StatefulWidget {
     required this.backgroundMusic,
     required this.effectVolume,
     required this.backgroundVolume,
-    required this.storyStyle,
     required this.onDarkMode,
     required this.onEffectSound,
     required this.onBackgroundMusic,
     required this.onEffectVolume,
     required this.onBackgroundVolume,
-    required this.onStoryStyle,
   });
 
   @override
@@ -202,7 +197,8 @@ class _AppShellState extends State<AppShell> {
       final userId = await AppFirebaseService.instance.signIn();
       var savedNickname = await AppFirebaseService.instance.loadNickname();
       final savedRecords = await AppFirebaseService.instance.loadRecords();
-      final accountLabel = await AppFirebaseService.instance.linkedAccountLabel();
+      final accountLabel =
+          await AppFirebaseService.instance.linkedAccountLabel();
       if (!mounted) return;
       setState(() {
         currentUserId = userId;
@@ -260,13 +256,11 @@ class _AppShellState extends State<AppShell> {
         backgroundMusic: widget.backgroundMusic,
         effectVolume: widget.effectVolume,
         backgroundVolume: widget.backgroundVolume,
-        storyStyle: widget.storyStyle,
         onDarkMode: widget.onDarkMode,
         onEffectSound: widget.onEffectSound,
         onBackgroundMusic: widget.onBackgroundMusic,
         onEffectVolume: widget.onEffectVolume,
         onBackgroundVolume: widget.onBackgroundVolume,
-        onStoryStyle: widget.onStoryStyle,
         onDeleteData: _deleteData,
         onDeleteAccount: _deleteAccount,
       ),
@@ -294,10 +288,11 @@ class _AppShellState extends State<AppShell> {
         const SnackBar(content: Text('내 기록과 공유 데이터가 삭제되었습니다.')),
       );
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('데이터를 삭제하지 못했습니다. 잠시 후 다시 시도해주세요.')),
         );
+      }
     }
   }
 
@@ -326,7 +321,7 @@ class _AppShellState extends State<AppShell> {
         const SnackBar(content: Text('회원탈퇴가 완료되었습니다.')),
       );
     } catch (error) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(error.toString().contains('CANCELED')
@@ -334,6 +329,7 @@ class _AppShellState extends State<AppShell> {
                 : '회원탈퇴를 완료하지 못했습니다. 잠시 후 다시 시도해주세요.'),
           ),
         );
+      }
     }
   }
 
@@ -343,7 +339,7 @@ class _AppShellState extends State<AppShell> {
     final result = await Navigator.of(context).push<WritingResult>(
       MaterialPageRoute(
         builder: (_) => WritingFlow(
-          storyStyle: widget.storyStyle,
+          storyStyle: 'random',
           todayWritingNumber: _todayWritingCount() + 1,
           onTabSelected: _selectTabFromRoute,
         ),
@@ -621,9 +617,10 @@ class _AdSlot extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final titleColor = youtube && Theme.of(context).brightness == Brightness.light
-        ? Colors.black87
-        : color;
+    final titleColor =
+        youtube && Theme.of(context).brightness == Brightness.light
+            ? Colors.black87
+            : color;
     return Semantics(
       label: label,
       button: onTap != null,
@@ -657,7 +654,9 @@ class _AdSlot extends StatelessWidget {
                   title,
                   key: ValueKey(title),
                   style: TextStyle(
-                      color: titleColor, fontSize: 13, fontWeight: FontWeight.bold),
+                      color: titleColor,
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold),
                 ),
               ),
             ])),
@@ -856,7 +855,9 @@ class HomePage extends StatelessWidget {
         padding: const EdgeInsets.all(22),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('참을인',
-              style: TextStyle(fontSize: 34, fontWeight: FontWeight.bold,
+              style: TextStyle(
+                  fontSize: 34,
+                  fontWeight: FontWeight.bold,
                   color: Theme.of(context).colorScheme.primary)),
           const SizedBox(height: 16),
           const Text('내 마음을 위해,\n참을인 하나.',
@@ -956,9 +957,10 @@ class _WritingFlowState extends State<WritingFlow> {
   }
 
   void next() {
-    if (page == 2)
+    if (page == 2) {
       selectedStory =
           recommendStory(textController.text, category, widget.storyStyle);
+    }
     if (page < 4) {
       if (page == 2) {
         unawaited(AppAudioService.instance.playStoryTransition());
@@ -1074,10 +1076,12 @@ class _WritingFlowState extends State<WritingFlow> {
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(key: const ValueKey('writing-header'), children: [
-            const Expanded(child: FittedBox(
+            const Expanded(
+                child: FittedBox(
               fit: BoxFit.scaleDown,
               alignment: Alignment.centerLeft,
-              child: Text('참을인을 직접 써보세요.', maxLines: 1,
+              child: Text('참을인을 직접 써보세요.',
+                  maxLines: 1,
                   style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
             )),
             const SizedBox(width: 6),
@@ -1321,9 +1325,9 @@ class _WritingFlowState extends State<WritingFlow> {
                     unawaited(AppAudioService.instance.playButton());
                     if (!AppFirebaseService.instance.hasLinkedAccount) {
                       final linked = await Navigator.of(context).push<bool>(
-                      MaterialPageRoute(
-                          builder: (_) => AccountLinkPage(
-                              onTabSelected: widget.onTabSelected)),
+                        MaterialPageRoute(
+                            builder: (_) => AccountLinkPage(
+                                onTabSelected: widget.onTabSelected)),
                       );
                       if (!mounted || linked != true) return;
                     }
@@ -1371,7 +1375,8 @@ class _AccountLinkPageState extends State<AccountLinkPage> {
       final message = error.toString().contains('CANCELED')
           ? '카카오 로그인이 취소되었습니다.'
           : '카카오 로그인에 실패했습니다. 잠시 후 다시 시도해주세요.';
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
     } finally {
       if (mounted) setState(() => signingIn = false);
     }
@@ -1381,8 +1386,8 @@ class _AccountLinkPageState extends State<AccountLinkPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(),
-      bottomNavigationBar:
-          AppBottomArea(selectedIndex: 3, onSelected: widget.onTabSelected ?? (_) {}),
+      bottomNavigationBar: AppBottomArea(
+          selectedIndex: 3, onSelected: widget.onTabSelected ?? (_) {}),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(24),
@@ -1475,12 +1480,16 @@ class _AccountNicknamePageState extends State<AccountNicknamePage> {
 
   Future<void> _save() async {
     final nickname = controller.text.trim();
-    if (nickname.length < 2 || nickname.length > 12 ||
+    if (nickname.length < 2 ||
+        nickname.length > 12 ||
         !RegExp(r'^[가-힣a-zA-Z0-9_]+$').hasMatch(nickname)) {
       setState(() => errorText = '한글, 영문, 숫자, 밑줄로 2~12자를 입력해주세요.');
       return;
     }
-    setState(() { saving = true; errorText = null; });
+    setState(() {
+      saving = true;
+      errorText = null;
+    });
     try {
       final claimed = await AppFirebaseService.instance.claimNickname(nickname);
       if (!mounted) return;
@@ -1497,29 +1506,46 @@ class _AccountNicknamePageState extends State<AccountNicknamePage> {
   }
 
   @override
-  void dispose() { controller.dispose(); super.dispose(); }
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(),
-    body: SafeArea(child: Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Text('계정에서 사용할\n닉네임을 정해주세요.', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 12),
-        const Text('공감하기와 내 공유에서 사용할 이름입니다.'),
-        const SizedBox(height: 24),
-        TextField(controller: controller, maxLength: 12, decoration: InputDecoration(
-          hintText: '예) 따뜻한마음', errorText: errorText, border: const OutlineInputBorder(),
+        appBar: AppBar(),
+        body: SafeArea(
+            child: Padding(
+          padding: const EdgeInsets.all(24),
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('계정에서 사용할\n닉네임을 정해주세요.',
+                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+            const Text('공감하기와 내 공유에서 사용할 이름입니다.'),
+            const SizedBox(height: 24),
+            TextField(
+                controller: controller,
+                maxLength: 12,
+                decoration: InputDecoration(
+                  hintText: '예) 따뜻한마음',
+                  errorText: errorText,
+                  border: const OutlineInputBorder(),
+                )),
+            const Spacer(),
+            SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: saving ? null : _save,
+                  child: saving
+                      ? const SizedBox.square(
+                          dimension: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Text('닉네임 사용하기'),
+                )),
+          ]),
         )),
-        const Spacer(),
-        SizedBox(width: double.infinity, child: FilledButton(
-          onPressed: saving ? null : _save,
-          child: saving ? const SizedBox.square(dimension: 20, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('닉네임 사용하기'),
-        )),
-      ]),
-    )),
-  );
+      );
 }
 
 class DrawPainter extends CustomPainter {
@@ -1556,8 +1582,9 @@ class DrawPainter extends CustomPainter {
 StoryItem recommendStory(String text, String category, String style) {
   final lower = text.toLowerCase();
   final emotions = <String>{};
-  if (RegExp(r'실수|자책|의욕|앞서|망쳤|못했|실패').hasMatch(lower))
+  if (RegExp(r'실수|자책|의욕|앞서|망쳤|못했|실패').hasMatch(lower)) {
     emotions.addAll(['자책', '실수']);
+  }
   if (RegExp(r'계속|곱씹|하루종일|반복').hasMatch(lower)) emotions.add('반추');
   if (RegExp(r'서운|섭섭|실망|상처').hasMatch(lower)) emotions.add('서운함');
   if (RegExp(r'카톡|문자|답장|보내|전화').hasMatch(lower)) emotions.add('충동');
@@ -1973,9 +2000,8 @@ class SharedPostCard extends StatelessWidget {
                                   textAlign: TextAlign.center),
                             ))))),
             TextButton.icon(
-                onPressed: mine || post.reportedByMe
-                    ? null
-                    : () => onReport(post),
+                onPressed:
+                    mine || post.reportedByMe ? null : () => onReport(post),
                 icon: const Icon(Icons.report, color: Colors.red),
                 label: Text(post.reportedByMe ? '신고 완료' : '신고')),
           ])));
@@ -2032,29 +2058,173 @@ class MySharePage extends StatelessWidget {
 }
 
 class PositivePage extends StatefulWidget {
-  const PositivePage({super.key});
+  final DailyPositiveStore? store;
+  final Random? random;
+  final DateTime Function()? now;
+
+  const PositivePage({super.key, this.store, this.random, this.now});
+
   @override
   State<PositivePage> createState() => _PositivePageState();
 }
 
 class _PositivePageState extends State<PositivePage> {
-  int index = 0;
+  static const _dailyLimit = 3;
+  late final DailyPositiveStore _store;
+  late final Random _random;
+  late String _dateKey;
+  late DailyPositivePair _current;
+  final List<DailyPositivePair> _todayPairs = [];
+  int _reviewCursor = -1;
+  Timer? _midnightTimer;
+
+  DateTime get _now => widget.now?.call() ?? DateTime.now();
+
   @override
   void initState() {
     super.initState();
-    index = Random().nextInt(positiveStories.length);
+    _store = widget.store ?? SharedPreferencesDailyPositiveStore();
+    _random = widget.random ?? Random();
+    _dateKey = localDateKey(_now);
+    _current = _randomPair();
+    unawaited(_restoreToday());
+    _scheduleMidnightReset();
   }
 
-  void next() {
-    setState(() => index = Random().nextInt(positiveStories.length));
+  @override
+  void dispose() {
+    _midnightTimer?.cancel();
+    super.dispose();
+  }
+
+  DailyPositivePair _randomPair() {
+    return DailyPositivePair(
+      positiveIndex: _random.nextInt(positiveStories.length),
+      quoteIndex: _random.nextInt(dailyQuotes.length),
+    );
+  }
+
+  DailyPositivePair _newPair() {
+    final usedPositive = _todayPairs.map((pair) => pair.positiveIndex).toSet();
+    final usedQuotes = _todayPairs.map((pair) => pair.quoteIndex).toSet();
+    DailyPositivePair candidate;
+    var attempts = 0;
+    do {
+      candidate = _randomPair();
+      attempts++;
+    } while (attempts < 100 &&
+        (candidate.positiveIndex == _current.positiveIndex ||
+            candidate.quoteIndex == _current.quoteIndex ||
+            usedPositive.contains(candidate.positiveIndex) ||
+            usedQuotes.contains(candidate.quoteIndex)));
+    return candidate;
+  }
+
+  Future<void> _restoreToday() async {
+    try {
+      final saved = await _store.load();
+      if (!mounted || saved == null || saved.dateKey != _dateKey) return;
+      final validPairs = saved.pairs
+          .where((pair) =>
+              pair.positiveIndex >= 0 &&
+              pair.positiveIndex < positiveStories.length &&
+              pair.quoteIndex >= 0 &&
+              pair.quoteIndex < dailyQuotes.length)
+          .take(_dailyLimit)
+          .toList(growable: false);
+      if (validPairs.isEmpty) return;
+      setState(() {
+        _todayPairs
+          ..clear()
+          ..addAll(validPairs);
+        _current = _todayPairs.last;
+        _reviewCursor = -1;
+      });
+    } catch (error) {
+      debugPrint('Daily positive restore error: $error');
+    }
+  }
+
+  Future<void> _saveToday() async {
+    try {
+      await _store.save(DailyPositiveState(
+        dateKey: _dateKey,
+        pairs: List<DailyPositivePair>.unmodifiable(_todayPairs),
+      ));
+    } catch (error) {
+      debugPrint('Daily positive save error: $error');
+    }
+  }
+
+  Future<void> _handleButton() async {
+    final today = localDateKey(_now);
+    if (today != _dateKey) {
+      setState(() {
+        _dateKey = today;
+        _todayPairs.clear();
+        _reviewCursor = -1;
+        _current = _randomPair();
+      });
+    }
+
+    if (_todayPairs.length >= _dailyLimit) {
+      setState(() {
+        _reviewCursor = (_reviewCursor + 1) % _todayPairs.length;
+        _current = _todayPairs[_reviewCursor];
+      });
+      return;
+    }
+
+    final nextPair = _newPair();
+    setState(() {
+      _todayPairs.add(nextPair);
+      _current = nextPair;
+      _reviewCursor = -1;
+    });
+    await _saveToday();
+
+    if (_todayPairs.length == _dailyLimit && mounted) {
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          content: const Text('다음달을 위해 우리 긍정에너지를 아껴두는건 어떨가요?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('확인'),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  void _scheduleMidnightReset() {
+    if (widget.now != null) return;
+    final now = DateTime.now();
+    final nextMidnight = DateTime(now.year, now.month, now.day + 1);
+    _midnightTimer = Timer(nextMidnight.difference(now), () {
+      if (!mounted) return;
+      setState(() {
+        _dateKey = localDateKey(DateTime.now());
+        _todayPairs.clear();
+        _reviewCursor = -1;
+        _current = _randomPair();
+      });
+      unawaited(_saveToday());
+      _scheduleMidnightReset();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final s = positiveStories[index];
+    final story = positiveStories[_current.positiveIndex];
+    final quote = dailyQuotes[_current.quoteIndex];
+    final reachedLimit = _todayPairs.length >= _dailyLimit;
     return SafeArea(
         child: Column(children: [
-      Expanded(child: ListView(
+      Expanded(
+          child: ListView(
         key: const ValueKey('positive-story-scroll'),
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
         children: [
@@ -2067,15 +2237,42 @@ class _PositivePageState extends State<PositivePage> {
                   child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(preventKoreanWordSplits(s.title),
+                        Text(preventKoreanWordSplits(story.title),
+                            key: const ValueKey('positive-story-title'),
                             style: const TextStyle(
                                 fontSize: 27, fontWeight: FontWeight.bold)),
                         const SizedBox(height: 12),
-                        Text(preventKoreanWordSplits(s.body),
+                        Text(preventKoreanWordSplits(story.body),
                             style: const TextStyle(fontSize: 16, height: 1.65)),
-                        const SizedBox(height: 14),
-                        Text(preventKoreanWordSplits(s.quote),
-                            style: const TextStyle(fontWeight: FontWeight.bold)),
+                        if (story.quote.isNotEmpty) ...[
+                          const SizedBox(height: 14),
+                          Text(preventKoreanWordSplits(story.quote),
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.bold)),
+                        ],
+                      ]))),
+          const SizedBox(height: 14),
+          Card(
+              key: const ValueKey('daily-quote-card'),
+              child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('오늘의 명언',
+                            style: TextStyle(
+                                fontSize: 22, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 12),
+                        Text(preventKoreanWordSplits(quote.text),
+                            key: const ValueKey('daily-quote-text'),
+                            style: const TextStyle(fontSize: 16, height: 1.65)),
+                        const SizedBox(height: 12),
+                        Text(preventKoreanWordSplits('— ${quote.attribution}'),
+                            style: TextStyle(
+                                fontSize: 14,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant)),
                       ]))),
         ],
       )),
@@ -2086,11 +2283,11 @@ class _PositivePageState extends State<PositivePage> {
           width: double.infinity,
           height: 52,
           child: FilledButton(
-              onPressed: () {
+              onPressed: () async {
                 unawaited(AppAudioService.instance.playButton());
-                next();
+                await _handleButton();
               },
-              child: const Text('다른 긍정 보기')),
+              child: Text(reachedLimit ? '오늘 긍정 다시 보기' : '다른 긍정 보기')),
         ),
       ),
     ]));
@@ -2102,10 +2299,8 @@ class SettingsPage extends StatelessWidget {
   final String? linkedAccountLabel;
   final bool darkMode, effectSound, backgroundMusic;
   final double effectVolume, backgroundVolume;
-  final String storyStyle;
   final ValueChanged<bool> onDarkMode, onEffectSound, onBackgroundMusic;
   final ValueChanged<double> onEffectVolume, onBackgroundVolume;
-  final ValueChanged<String> onStoryStyle;
   final Future<void> Function() onDeleteData, onDeleteAccount;
   const SettingsPage(
       {super.key,
@@ -2116,13 +2311,11 @@ class SettingsPage extends StatelessWidget {
       required this.backgroundMusic,
       required this.effectVolume,
       required this.backgroundVolume,
-      required this.storyStyle,
       required this.onDarkMode,
       required this.onEffectSound,
       required this.onBackgroundMusic,
       required this.onEffectVolume,
       required this.onBackgroundVolume,
-      required this.onStoryStyle,
       required this.onDeleteData,
       required this.onDeleteAccount});
   @override
@@ -2164,32 +2357,6 @@ class SettingsPage extends StatelessWidget {
                   value: backgroundVolume,
                   onChanged: backgroundMusic ? onBackgroundVolume : null)),
         ])),
-        Card(
-            child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('🌱 이야기 스타일',
-                          style: TextStyle(fontWeight: FontWeight.bold)),
-                      RadioGroup<String>(
-                        groupValue: storyStyle,
-                        onChanged: (value) {
-                          if (value != null) onStoryStyle(value);
-                        },
-                        child: Column(
-                          children: [
-                            ('comfort', '위로 중심'),
-                            ('growth', '성장 중심'),
-                            ('reality', '현실 조언 중심'),
-                            ('random', '랜덤'),
-                          ]
-                              .map((x) => RadioListTile<String>(
-                                  value: x.$1, title: Text(x.$2)))
-                              .toList(),
-                        ),
-                      ),
-                    ]))),
         Card(
             child: Column(children: [
           ListTile(
