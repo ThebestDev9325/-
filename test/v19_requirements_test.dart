@@ -20,10 +20,10 @@ SharedPost post({
 }
 
 void main() {
-  test('홈 배경음은 새소리 대신 잔잔한 빗소리를 사용한다', () {
+  test('홈 배경음은 자연 소리 대신 오리지널 명상 패드를 사용한다', () {
     expect(
       AppAudioService.homeBgmAsset,
-      'assets/audio/positive_rain_v6.mp3',
+      'assets/audio/meditation_pad_v20.mp3',
     );
   });
 
