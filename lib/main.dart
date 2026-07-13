@@ -216,24 +216,27 @@ class _AppShellState extends State<AppShell> {
           ..clear()
           ..addAll(savedRecords);
       });
-      _postsSubscription = AppFirebaseService.instance
-          .watchSharedPosts()
-          .listen(
-            (posts) {
-              if (!mounted) return;
-              setState(() {
-                sharedPosts
-                  ..clear()
-                  ..addAll(posts);
-              });
-            },
-            onError: (Object error, StackTrace stackTrace) {
-              debugPrint('Firestore shared posts error: $error');
-            },
-          );
+      await _subscribeToSharedPosts();
     } catch (error, stackTrace) {
       debugPrint('Firebase connection error: $error\n$stackTrace');
     }
+  }
+
+  Future<void> _subscribeToSharedPosts() async {
+    await _postsSubscription?.cancel();
+    _postsSubscription = AppFirebaseService.instance.watchSharedPosts().listen(
+      (posts) {
+        if (!mounted) return;
+        setState(() {
+          sharedPosts
+            ..clear()
+            ..addAll(posts);
+        });
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        debugPrint('Firestore shared posts error: $error\n$stackTrace');
+      },
+    );
   }
 
   @override
@@ -387,38 +390,46 @@ class _AppShellState extends State<AppShell> {
       story: result.story,
       shared: result.shared,
     );
+    try {
+      if (activeUserId != null) {
+        await AppFirebaseService.instance.saveRecord(record);
+      } else if (result.shared) {
+        throw StateError('공유에 사용할 Firebase 계정이 없습니다.');
+      }
+      if (result.shared) await _subscribeToSharedPosts();
+    } catch (error, stackTrace) {
+      debugPrint('Record save error: $error\n$stackTrace');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            result.shared
+                ? '공유 글을 서버에 저장하지 못했습니다. 인터넷 연결을 확인하고 다시 시도해주세요.'
+                : '기록을 저장하지 못했습니다. 인터넷 연결을 확인하고 다시 시도해주세요.',
+          ),
+        ),
+      );
+      return;
+    }
+    if (!mounted) return;
     setState(() {
       if (activeUserId != null) currentUserId = activeUserId;
       nickname = activeNickname;
       linkedAccountLabel = activeAccountLabel;
       records.insert(0, record);
       if (result.shared) {
-        sharedPosts.insert(
-          0,
-          SharedPost(
-            id: record.id,
-            ownerId: currentUserId,
-            category: record.category,
-            text: record.text,
-            moodEmoji: record.moodEmoji,
-            createdAt: record.createdAt,
-          ),
-        );
         tabIndex = 3;
       } else {
         tabIndex = 1;
       }
     });
-    if (currentUserId != 'connecting') {
-      unawaited(AppFirebaseService.instance.saveRecord(record));
-      if (result.storyFeedback != null) {
-        unawaited(
-          AppFirebaseService.instance.submitStoryFeedback(
-            result.story.id,
-            result.storyFeedback!,
-          ),
-        );
-      }
+    if (result.storyFeedback != null) {
+      unawaited(
+        AppFirebaseService.instance.submitStoryFeedback(
+          result.story.id,
+          result.storyFeedback!,
+        ),
+      );
     }
   }
 
