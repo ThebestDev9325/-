@@ -15,7 +15,6 @@ class AppAudioService {
   final _bgmPlayer = AudioPlayer();
   final _brushPlayer = AudioPlayer();
   final _buttonPlayer = AudioPlayer();
-  final _completePlayer = AudioPlayer();
   final _emotionPlayer = AudioPlayer();
   final _storyPlayer = AudioPlayer();
 
@@ -35,7 +34,6 @@ class AppAudioService {
     await Future.wait([
       _brushPlayer.setAsset('assets/audio/brush_soft_v6.mp3'),
       _buttonPlayer.setAsset('assets/audio/button_water_v6.mp3'),
-      _completePlayer.setAsset('assets/audio/complete_bird_v6.mp3'),
       _emotionPlayer.setAsset('assets/audio/emotion_water_v6.mp3'),
       _storyPlayer.setAsset('assets/audio/story_page_v6.mp3'),
     ]);
@@ -80,7 +78,6 @@ class AppAudioService {
       await Future.wait([
         _brushPlayer.stop(),
         _buttonPlayer.stop(),
-        _completePlayer.stop(),
         _emotionPlayer.stop(),
         _storyPlayer.stop(),
       ]);
@@ -107,7 +104,7 @@ class AppAudioService {
 
   Future<void> playBrush() => _play(_brushPlayer, gain: .50);
   Future<void> playButton() => _play(_buttonPlayer, gain: .42);
-  Future<void> playComplete() => _play(_completePlayer, gain: .62);
+  Future<void> playComplete() => playButton();
   Future<void> playEmotion() => _play(_emotionPlayer, gain: .48);
   Future<void> playStoryTransition() => _play(_storyPlayer, gain: .45);
 
@@ -125,7 +122,6 @@ class AppAudioService {
       _bgmPlayer.dispose(),
       _brushPlayer.dispose(),
       _buttonPlayer.dispose(),
-      _completePlayer.dispose(),
       _emotionPlayer.dispose(),
       _storyPlayer.dispose(),
     ]);
