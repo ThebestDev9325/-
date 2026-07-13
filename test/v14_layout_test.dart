@@ -10,7 +10,7 @@ void main() {
         home: Scaffold(bottomNavigationBar: BottomAdSlots()),
       ),
     );
-    final title = tester.widget<Text>(find.text('어슬렁 개발'));
+    final title = tester.widget<Text>(find.text('조용한 밤의 위로'));
     expect(title.style?.color, Colors.black87);
     await tester.pumpWidget(const SizedBox.shrink());
   });
@@ -24,7 +24,7 @@ void main() {
         home: const Scaffold(bottomNavigationBar: BottomAdSlots()),
       ),
     );
-    final title = tester.widget<Text>(find.text('어슬렁 개발'));
+    final title = tester.widget<Text>(find.text('조용한 밤의 위로'));
     expect(title.style?.color, Colors.white);
     await tester.pumpWidget(const SizedBox.shrink());
   });

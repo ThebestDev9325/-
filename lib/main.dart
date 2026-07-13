@@ -460,25 +460,6 @@ class BottomAdSlots extends StatefulWidget {
 }
 
 class _BottomAdSlotsState extends State<BottomAdSlots> {
-  Timer? _rotationTimer;
-  int _phase = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _rotationTimer = Timer.periodic(const Duration(seconds: 10), (_) {
-      if (mounted) {
-        setState(() => _phase = 1 - _phase);
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _rotationTimer?.cancel();
-    super.dispose();
-  }
-
   Future<void> _open(String url) async {
     final opened = await launchUrl(
       Uri.parse(url),
@@ -494,8 +475,6 @@ class _BottomAdSlotsState extends State<BottomAdSlots> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final leftYoutube = _phase == 1;
-    final rightYoutube = _phase == 0;
     return SafeArea(
       top: false,
       child: Container(
@@ -508,31 +487,20 @@ class _BottomAdSlotsState extends State<BottomAdSlots> {
           Expanded(
               child: _AdSlot(
             key: const ValueKey('bottom-ad-slot-1'),
-            label: leftYoutube ? '광고 영역 1: 조용한 밤의 위로' : '광고 영역 1: NAVER 검색',
-            title: leftYoutube ? '조용한 밤의 위로' : 'NAVER 검색',
-            color: leftYoutube ? Colors.white : const Color(0xFF03C75A),
-            youtube: leftYoutube,
-            background: leftYoutube
-                ? const [Color(0xFF17283A), Color(0xFF526B56)]
-                : null,
-            onTap: () => _open(leftYoutube
-                ? 'https://www.youtube.com/@slowhug'
-                : 'https://www.naver.com/'),
+            label: '광고 영역 1: 조용한 밤의 위로',
+            title: '조용한 밤의 위로',
+            color: Colors.white,
+            youtube: true,
+            background: const [Color(0xFF17283A), Color(0xFF526B56)],
+            onTap: () => _open('https://www.youtube.com/@slowhug'),
           )),
           VerticalDivider(width: 1, thickness: 1, color: colors.outlineVariant),
-          Expanded(
+          const Expanded(
               child: _AdSlot(
-            key: const ValueKey('bottom-ad-slot-2'),
-            label: rightYoutube ? '광고 영역 2: 어슬렁 개발' : '광고 영역 2: Google',
-            title: rightYoutube ? '어슬렁 개발' : 'Google',
-            color: rightYoutube ? Colors.white : const Color(0xFF4285F4),
-            youtube: rightYoutube,
-            background: rightYoutube
-                ? const [Color(0xFF1D2733), Color(0xFF53606B)]
-                : null,
-            onTap: () => _open(rightYoutube
-                ? 'https://www.youtube.com/@kokom2574'
-                : 'https://www.google.com/'),
+            key: ValueKey('bottom-ad-slot-2'),
+            label: '광고 영역 2: 비어 있음',
+            title: '',
+            color: Colors.transparent,
           )),
         ]),
       ),
@@ -546,14 +514,14 @@ class _AdSlot extends StatelessWidget {
     required this.label,
     required this.title,
     required this.color,
-    required this.onTap,
+    this.onTap,
     this.youtube = false,
     this.background,
   });
   final String label;
   final String title;
   final Color color;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   final bool youtube;
   final List<Color>? background;
 
@@ -565,7 +533,7 @@ class _AdSlot extends StatelessWidget {
         : color;
     return Semantics(
       label: label,
-      button: true,
+      button: onTap != null,
       child: Ink(
         decoration: background == null
             ? null

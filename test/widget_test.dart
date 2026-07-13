@@ -31,13 +31,10 @@ void main() {
     expect(tester.getSize(find.byType(BottomAdSlots)).height,
         BottomAdSlots.height);
     expect(find.text('광고'), findsNWidgets(2));
-    expect(find.text('NAVER 검색'), findsOneWidget);
-    expect(find.text('어슬렁 개발'), findsOneWidget);
-
-    await tester.pump(const Duration(seconds: 10));
-    await tester.pump(const Duration(milliseconds: 400));
     expect(find.text('조용한 밤의 위로'), findsOneWidget);
-    expect(find.text('Google'), findsOneWidget);
+    expect(find.text('NAVER 검색'), findsNothing);
+    expect(find.text('어슬렁 개발'), findsNothing);
+    expect(find.text('Google'), findsNothing);
 
     await tester.pumpWidget(const SizedBox.shrink());
   });
