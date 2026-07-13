@@ -1,4 +1,5 @@
 import '../models.dart';
+import 'additional_positive_stories.dart';
 
 // 고전 문헌을 바탕으로 한 문장은 앱의 말투에 맞게 짧게 의역했습니다.
 // 원문과 판본은 docs/QUOTE_SOURCES.md에서 확인할 수 있습니다.
@@ -160,4 +161,5 @@ const positiveStories = <PositiveStory>[
       title: '당신의 자리',
       body: '성과가 적은 날에도 당신은 존중받을 사람입니다. 무엇을 해냈는지와 존재의 가치는 같은 것이 아닙니다.',
       quote: '잘해야만 소중한 것이 아닙니다.'),
+  ...additionalPositiveStories,
 ];

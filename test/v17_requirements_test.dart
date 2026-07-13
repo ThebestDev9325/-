@@ -30,13 +30,11 @@ void main() {
           backgroundMusic: true,
           effectVolume: .2,
           backgroundVolume: .2,
-          storyStyle: 'random',
           onDarkMode: (_) {},
           onEffectSound: (_) {},
           onBackgroundMusic: (_) {},
           onEffectVolume: (_) {},
           onBackgroundVolume: (_) {},
-          onStoryStyle: (_) {},
           onDeleteData: () async {},
           onDeleteAccount: () async {},
         ),
@@ -44,5 +42,6 @@ void main() {
     );
     expect(find.text('카카오 계정 연결됨'), findsOneWidget);
     expect(find.text('아직 연결된 계정 없음'), findsNothing);
+    expect(find.text('이야기 스타일'), findsNothing);
   });
 }
