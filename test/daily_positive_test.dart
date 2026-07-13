@@ -37,6 +37,23 @@ void main() {
     expect(find.text('오늘의 명언'), findsNothing);
     expect(find.byKey(const ValueKey('positive-story-card')), findsOneWidget);
     expect(find.byKey(const ValueKey('daily-quote-card')), findsNothing);
+    expect(
+      tester
+          .widget<Card>(
+            find.byKey(const ValueKey('positive-story-card')),
+          )
+          .color,
+      const Color(0xFFFFF7D9),
+    );
+    expect(
+      (tester
+              .widget<Container>(
+                find.byKey(const ValueKey('positive-heading-surface')),
+              )
+              .decoration as BoxDecoration)
+          .color,
+      const Color(0xFFFFECA8),
+    );
 
     for (var count = 1; count <= 3; count++) {
       await tester.tap(find.text('다른 긍정 보기'));
@@ -51,6 +68,34 @@ void main() {
         find.byKey(const ValueKey('positive-story-card')),
         shouldShowQuote ? findsNothing : findsOneWidget,
       );
+      if (count == 1) {
+        expect(
+          tester
+              .widget<Card>(
+                find.byKey(const ValueKey('daily-quote-card')),
+              )
+              .color,
+          const Color(0xFFF0F7E5),
+        );
+        expect(
+          (tester
+                  .widget<Container>(
+                    find.byKey(const ValueKey('positive-heading-surface')),
+                  )
+                  .decoration as BoxDecoration)
+              .color,
+          const Color(0xFFE3F1CF),
+        );
+        expect(
+          tester
+              .widget<Text>(
+                find.byKey(const ValueKey('daily-quote-text')),
+              )
+              .style
+              ?.fontSize,
+          19,
+        );
+      }
       if (count < 3) {
         expect(find.text('다른 긍정 보기'), findsOneWidget);
       }

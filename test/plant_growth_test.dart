@@ -42,7 +42,17 @@ void main() {
     ));
     await tester.pump();
 
+    expect(find.text('내 마음을 위해'), findsOneWidget);
+    expect(find.text('참을인 하나'), findsOneWidget);
+    expect(find.text('내 마음을 위해,'), findsNothing);
+    expect(find.text('참을인 하나.'), findsNothing);
+    expect(find.text('터치해보세요'), findsOneWidget);
     expect(find.byKey(const ValueKey('home-plant-stage-0')), findsOneWidget);
+    final plantImage = tester.widget<Image>(
+      find.byKey(const ValueKey('home-plant-image')),
+    );
+    expect(plantImage.width, 146);
+    expect(plantImage.height, 184);
     for (var i = 0; i < 4; i++) {
       await tester.tap(find.byKey(const ValueKey('home-plant-tap')));
       await tester.pumpAndSettle();

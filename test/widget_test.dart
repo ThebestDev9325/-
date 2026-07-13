@@ -14,7 +14,9 @@ void main() {
   testWidgets('닉네임 입력 없이 홈 화면으로 바로 진입한다', (WidgetTester tester) async {
     await tester.pumpWidget(const ChameulinApp());
     expect(find.text('참을인'), findsOneWidget);
-    expect(find.text('내 마음을 위해,\n참을인 하나.'), findsOneWidget);
+    expect(find.text('내 마음을 위해'), findsOneWidget);
+    expect(find.text('참을인 하나'), findsOneWidget);
+    expect(find.text('터치해보세요'), findsOneWidget);
     expect(find.textContaining('닉네임을 정해주세요'), findsNothing);
   });
 

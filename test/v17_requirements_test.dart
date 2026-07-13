@@ -13,7 +13,7 @@ void main() {
       ),
     );
     final appName = tester.widget<Text>(find.text('참을인'));
-    final slogan = tester.widget<Text>(find.text('내 마음을 위해,\n참을인 하나.'));
+    final slogan = tester.widget<Text>(find.text('내 마음을 위해'));
     expect(appName.style?.fontSize, slogan.style?.fontSize);
     expect(appName.style?.fontSize, 34);
     expect(appName.style?.color, isNotNull);
