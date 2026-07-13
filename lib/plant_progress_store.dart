@@ -10,6 +10,7 @@ class PlantProgress {
 abstract interface class PlantProgressStore {
   Future<PlantProgress?> load();
   Future<void> save(PlantProgress progress);
+  Future<void> clear();
 }
 
 class SharedPreferencesPlantProgressStore implements PlantProgressStore {
@@ -35,5 +36,11 @@ class SharedPreferencesPlantProgressStore implements PlantProgressStore {
   Future<void> save(PlantProgress progress) async {
     await _prefs.setString(_dateKey, progress.dateKey);
     await _prefs.setInt(_tapCountKey, progress.tapCount);
+  }
+
+  @override
+  Future<void> clear() async {
+    await _prefs.remove(_dateKey);
+    await _prefs.remove(_tapCountKey);
   }
 }

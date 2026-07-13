@@ -15,6 +15,11 @@ class MemoryPlantProgressStore implements PlantProgressStore {
   Future<void> save(PlantProgress progress) async {
     this.progress = progress;
   }
+
+  @override
+  Future<void> clear() async {
+    progress = null;
+  }
 }
 
 void main() {
@@ -33,13 +38,15 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final store = MemoryPlantProgressStore();
 
-    await tester.pumpWidget(MaterialApp(
-      home: HomePage(
-        onStart: () {},
-        plantStore: store,
-        now: () => DateTime(2026, 7, 13, 10),
+    await tester.pumpWidget(
+      MaterialApp(
+        home: HomePage(
+          onStart: () {},
+          plantStore: store,
+          now: () => DateTime(2026, 7, 13, 10),
+        ),
       ),
-    ));
+    );
     await tester.pump();
 
     expect(find.text('내 마음을 위해'), findsOneWidget);
@@ -47,6 +54,10 @@ void main() {
     expect(find.text('내 마음을 위해,'), findsNothing);
     expect(find.text('참을인 하나.'), findsNothing);
     expect(find.text('터치해보세요'), findsOneWidget);
+    expect(
+      tester.getSize(find.byKey(const ValueKey('home-writing-card'))).height,
+      greaterThan(460),
+    );
     expect(find.byKey(const ValueKey('home-plant-stage-0')), findsOneWidget);
     final plantImage = tester.widget<Image>(
       find.byKey(const ValueKey('home-plant-image')),
@@ -74,18 +85,19 @@ void main() {
   });
 
   testWidgets('요일이 바뀌면 새 꽃과 첫 단계로 시작한다', (tester) async {
-    final store = MemoryPlantProgressStore(const PlantProgress(
-      dateKey: '2026-07-12',
-      tapCount: 20,
-    ));
+    final store = MemoryPlantProgressStore(
+      const PlantProgress(dateKey: '2026-07-12', tapCount: 20),
+    );
 
-    await tester.pumpWidget(MaterialApp(
-      home: HomePage(
-        onStart: () {},
-        plantStore: store,
-        now: () => DateTime(2026, 7, 13, 9),
+    await tester.pumpWidget(
+      MaterialApp(
+        home: HomePage(
+          onStart: () {},
+          plantStore: store,
+          now: () => DateTime(2026, 7, 13, 9),
+        ),
       ),
-    ));
+    );
     await tester.pump();
 
     expect(find.byKey(const ValueKey('home-plant-stage-0')), findsOneWidget);
