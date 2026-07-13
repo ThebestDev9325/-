@@ -1,7 +1,7 @@
 name: chameulin
 description: 참을인 Flutter MVP - Firebase 연결 전 로컬 프로토타입
 publish_to: 'none'
-version: 1.9.5+21
+version: 1.9.6+22
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
