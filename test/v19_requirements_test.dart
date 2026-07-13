@@ -20,11 +20,12 @@ SharedPost post({
 }
 
 void main() {
-  test('홈 배경음은 자연 소리 대신 오리지널 명상 패드를 사용한다', () {
+  test('모든 화면의 배경음은 사용자가 제공한 음악을 사용한다', () {
     expect(
       AppAudioService.homeBgmAsset,
-      'assets/audio/meditation_pad_v20.mp3',
+      'assets/audio/soft_rain_meditation.mp3',
     );
+    expect(AppAudioService.defaultBackgroundVolume, .50);
   });
 
   test('오늘의 베스트는 현지 자정 이후 작성된 사연만 대상으로 한다', () {
