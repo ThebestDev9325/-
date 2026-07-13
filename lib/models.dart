@@ -68,6 +68,7 @@ class SharedPost {
   final List<int> reactions;
   int? myReaction;
   int reportCount;
+  bool reportedByMe;
 
   SharedPost({
     required this.id,
@@ -79,5 +80,6 @@ class SharedPost {
     List<int>? reactions,
     this.myReaction,
     this.reportCount = 0,
+    this.reportedByMe = false,
   }) : reactions = reactions ?? [0, 0, 0];
 }
