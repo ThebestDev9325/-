@@ -74,8 +74,17 @@ void main() {
     expect(find.text('사연 today'), findsNWidgets(2));
     expect(find.text('사연 yesterday'), findsNothing);
     expect(find.text('오늘의 Best 사연'), findsOneWidget);
+    expect(find.text('2026년'), findsOneWidget);
+    expect(find.text('7월'), findsOneWidget);
+    expect(find.text('18일'), findsOneWidget);
 
-    await tester.tap(find.text('17일'));
+    final dayDropdown = tester.widget<DropdownButton<int>>(
+      find.descendant(
+        of: find.byKey(const ValueKey('empathy-day-dropdown')),
+        matching: find.byType(DropdownButton<int>),
+      ),
+    );
+    dayDropdown.onChanged!(17);
     await tester.pump();
 
     expect(find.text('사연 today'), findsNothing);

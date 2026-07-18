@@ -1318,6 +1318,7 @@ class _WritingFlowState extends State<WritingFlow> {
         textController.text,
         category,
         widget.storyStyle,
+        moodLabel,
       );
     }
     if (page < 4) {
@@ -2049,35 +2050,63 @@ class DrawPainter extends CustomPainter {
   bool shouldRepaint(covariant DrawPainter oldDelegate) => true;
 }
 
-StoryItem recommendStory(String text, String category, String style) {
-  final lower = text.toLowerCase();
+StoryItem recommendStory(
+  String text,
+  String category,
+  String style, [
+  String mood = '',
+]) {
+  final lower = '$text $mood'.trim().toLowerCase();
   final emotions = <String>{};
-  if (RegExp(r'실수|자책|의욕|앞서|망쳤|못했|실패').hasMatch(lower)) {
+  if (RegExp(r'실수|자책|후회|용서|망쳤|못했|실패|미안').hasMatch(lower)) {
     emotions.addAll(['자책', '실수']);
   }
   if (RegExp(r'계속|곱씹|하루종일|반복').hasMatch(lower)) emotions.add('반추');
-  if (RegExp(r'서운|섭섭|실망|상처').hasMatch(lower)) emotions.add('서운함');
+  if (RegExp(r'서운|섭섭|슬퍼|실망|상처|배신|외로').hasMatch(lower)) {
+    emotions.add('서운함');
+  }
   if (RegExp(r'카톡|문자|답장|보내|전화').hasMatch(lower)) emotions.add('충동');
-  if (RegExp(r'억울|부당|누명|무시').hasMatch(lower)) emotions.add('억울함');
+  if (RegExp(r'억울|부당|누명|해명|무시|차별').hasMatch(lower)) {
+    emotions.add('억울함');
+  }
+  if (RegExp(r'화나|분노|짜증|열받|화가').hasMatch(lower)) emotions.add('분노');
+  if (RegExp(r'불안|걱정|두려|무서|막막').hasMatch(lower)) emotions.add('불안');
+  if (RegExp(r'지쳐|피곤|번아웃|의욕|무기력').hasMatch(lower)) {
+    emotions.add('무기력');
+  }
 
-  StoryItem best = storyDb.first;
-  var maxScore = -999;
+  final familyScores = <String, int>{};
+  final familyStories = <String, List<StoryItem>>{};
   for (final story in storyDb) {
     var score = 0;
-    for (final k in story.keywords) {
-      if (lower.contains(k)) score += 5;
+    for (final keyword in story.keywords) {
+      if (lower.contains(keyword.toLowerCase())) {
+        score += 10 + min(keyword.length, 5);
+      }
     }
-    for (final e in story.emotions) {
-      if (emotions.contains(e)) score += 7;
+    for (final emotion in story.emotions) {
+      if (emotions.contains(emotion)) score += 12;
     }
-    if (story.categories.contains(category)) score += 2;
-    if (style != 'random' && story.styles.contains(style)) score += 3;
-    if (score > maxScore) {
-      maxScore = score;
-      best = story;
-    }
+    if (story.categories.contains(category)) score += 8;
+    if (style != 'random' && story.styles.contains(style)) score += 4;
+
+    final family = story.id.split('__').first;
+    familyStories.putIfAbsent(family, () => []).add(story);
+    familyScores[family] = max(familyScores[family] ?? -1, score);
   }
-  return best;
+
+  final bestFamily = familyScores.entries.reduce((best, candidate) {
+    if (candidate.value != best.value) {
+      return candidate.value > best.value ? candidate : best;
+    }
+    return candidate.key.compareTo(best.key) < 0 ? candidate : best;
+  }).key;
+  final candidates = familyStories[bestFamily]!;
+  var hash = 0;
+  for (final codeUnit in '$lower|$category|$style'.codeUnits) {
+    hash = ((hash * 31) + codeUnit) & 0x7fffffff;
+  }
+  return candidates[hash % candidates.length];
 }
 
 class RecordsPage extends StatefulWidget {
@@ -2493,9 +2522,43 @@ class _EmpathyPageState extends State<EmpathyPage> {
     selectedDate = dateOnly(now);
   }
 
+  void _selectYear(int year) {
+    final lastDay = DateTime(year, selectedDate.month + 1, 0).day;
+    setState(() {
+      selectedDate = DateTime(
+        year,
+        selectedDate.month,
+        min(selectedDate.day, lastDay),
+      );
+    });
+  }
+
+  void _selectMonth(int month) {
+    final lastDay = DateTime(selectedDate.year, month + 1, 0).day;
+    setState(() {
+      selectedDate = DateTime(
+        selectedDate.year,
+        month,
+        min(selectedDate.day, lastDay),
+      );
+    });
+  }
+
+  void _selectDay(int day) {
+    setState(() {
+      selectedDate = DateTime(selectedDate.year, selectedDate.month, day);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    final dates = empathyDates(widget.posts, now);
+    final years = <int>{
+      now.year,
+      selectedDate.year,
+      ...widget.posts.map((post) => post.createdAt.toLocal().year),
+    }.toList()
+      ..sort((a, b) => b.compareTo(a));
+    final lastDay = DateTime(selectedDate.year, selectedDate.month + 1, 0).day;
     final visiblePosts = postsForDay(widget.posts, selectedDate);
     final best = bestPostForDay(visiblePosts, selectedDate);
     final isToday = sameLocalDate(selectedDate, now);
@@ -2505,29 +2568,38 @@ class _EmpathyPageState extends State<EmpathyPage> {
         child: ListView(
           padding: const EdgeInsets.all(18),
           children: [
-            const Text(
-              '공감하기',
-              style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
+            Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    '공감하기',
+                    style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                _CompactDateDropdown(
+                  key: const ValueKey('empathy-year-dropdown'),
+                  value: selectedDate.year,
+                  values: years,
+                  suffix: '년',
+                  onChanged: _selectYear,
+                ),
+                _CompactDateDropdown(
+                  key: const ValueKey('empathy-month-dropdown'),
+                  value: selectedDate.month,
+                  values: List.generate(12, (index) => index + 1),
+                  suffix: '월',
+                  onChanged: _selectMonth,
+                ),
+                _CompactDateDropdown(
+                  key: const ValueKey('empathy-day-dropdown'),
+                  value: selectedDate.day,
+                  values: List.generate(lastDay, (index) => index + 1),
+                  suffix: '일',
+                  onChanged: _selectDay,
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
-            SizedBox(
-              height: 42,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: dates.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 8),
-                itemBuilder: (context, index) {
-                  final date = dates[index];
-                  return ChoiceChip(
-                    key: ValueKey('empathy-date-${localDateKey(date)}'),
-                    label: Text('${date.day}일'),
-                    selected: sameLocalDate(date, selectedDate),
-                    onSelected: (_) => setState(() => selectedDate = date),
-                  );
-                },
-              ),
-            ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 14),
             if (visiblePosts.isEmpty)
               const Card(
                 child: Padding(
@@ -2577,6 +2649,44 @@ class _EmpathyPageState extends State<EmpathyPage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _CompactDateDropdown extends StatelessWidget {
+  final int value;
+  final List<int> values;
+  final String suffix;
+  final ValueChanged<int> onChanged;
+
+  const _CompactDateDropdown({
+    super.key,
+    required this.value,
+    required this.values,
+    required this.suffix,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return DropdownButtonHideUnderline(
+      child: DropdownButton<int>(
+        value: value,
+        isDense: true,
+        borderRadius: BorderRadius.circular(12),
+        style: Theme.of(context).textTheme.bodyMedium,
+        items: values
+            .map(
+              (item) => DropdownMenuItem(
+                value: item,
+                child: Text('$item$suffix'),
+              ),
+            )
+            .toList(),
+        onChanged: (next) {
+          if (next != null) onChanged(next);
+        },
       ),
     );
   }
@@ -2680,15 +2790,6 @@ bool sameLocalDate(DateTime first, DateTime second) {
 
 List<SharedPost> postsForDay(List<SharedPost> posts, DateTime date) {
   return posts.where((post) => sameLocalDate(post.createdAt, date)).toList();
-}
-
-List<DateTime> empathyDates(List<SharedPost> posts, DateTime now) {
-  final dates = <DateTime>{
-    dateOnly(now),
-    ...posts.map((post) => dateOnly(post.createdAt))
-  }.toList()
-    ..sort((a, b) => b.compareTo(a));
-  return dates;
 }
 
 class MySharePage extends StatelessWidget {
