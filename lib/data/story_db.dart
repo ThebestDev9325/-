@@ -1,6 +1,6 @@
 import '../models.dart';
 
-const storyDb = <StoryItem>[
+const _storySeeds = <StoryItem>[
   StoryItem(
       id: 'self_kind',
       theme: '마음 돌봄',
@@ -166,4 +166,164 @@ const storyDb = <StoryItem>[
       emotions: ['자책', '무기력'],
       categories: ['나 자신', '직장'],
       styles: ['comfort']),
+];
+
+const _storyExpansions = <({
+  String id,
+  String lead,
+  String intro,
+  String action,
+  String quote,
+})>[
+  (
+    id: 'breath',
+    lead: '숨을 고르고',
+    intro: '먼저 천천히 숨을 세 번 쉬어보세요.',
+    action: '숨이 고르게 돌아온 뒤 지금 필요한 한 가지를 골라보세요.',
+    quote: '숨을 고르는 동안 마음은 다음 걸음을 준비합니다.'
+  ),
+  (
+    id: 'name',
+    lead: '마음에 이름을 붙이며',
+    intro: '지금 느끼는 감정을 한 단어로 불러보는 것부터 시작해도 좋아요.',
+    action: '감정의 이름을 적고 그 감정이 바라는 것을 한 줄로 덧붙여보세요.',
+    quote: '이름을 붙인 감정은 다룰 수 있는 마음이 됩니다.'
+  ),
+  (
+    id: 'distance',
+    lead: '한 걸음 떨어져',
+    intro: '이 일을 가까운 친구의 이야기라고 생각해보세요.',
+    action: '친구에게 건넬 말을 오늘의 나에게도 같은 목소리로 들려주세요.',
+    quote: '따뜻한 거리는 마음을 더 선명하게 보여줍니다.'
+  ),
+  (
+    id: 'body',
+    lead: '몸의 신호를 살피며',
+    intro: '마음보다 먼저 굳어진 어깨와 턱의 힘을 알아차려보세요.',
+    action: '몸의 긴장을 조금 풀고 물 한 잔을 마신 뒤 다시 생각해보세요.',
+    quote: '몸을 돌보는 일은 마음을 설득하는 가장 조용한 방법입니다.'
+  ),
+  (
+    id: 'today',
+    lead: '오늘만큼만',
+    intro: '앞으로의 모든 날이 아니라 오늘 하루만 바라봐도 괜찮아요.',
+    action: '오늘 안에 할 수 있는 가장 작은 선택 하나만 정해보세요.',
+    quote: '오늘을 건너는 힘이 내일의 길을 만듭니다.'
+  ),
+  (
+    id: 'fact',
+    lead: '사실과 생각을 나누며',
+    intro: '일어난 사실과 마음속 해석을 잠시 두 칸으로 나누어보세요.',
+    action: '확실한 사실 하나와 아직 모르는 것 하나를 구분해 적어보세요.',
+    quote: '사실을 바라보면 걱정이 차지한 자리에 여백이 생깁니다.'
+  ),
+  (
+    id: 'boundary',
+    lead: '내 경계를 지키며',
+    intro: '참는 것과 나를 지키는 것은 같은 일이 아니에요.',
+    action: '받아들일 수 있는 것과 어려운 것을 짧고 분명하게 정리해보세요.',
+    quote: '건강한 경계는 관계를 밀어내는 벽이 아니라 지키는 선입니다.'
+  ),
+  (
+    id: 'pause',
+    lead: '잠시 멈춘 뒤',
+    intro: '지금 바로 답하거나 결정하지 않아도 괜찮아요.',
+    action: '가능하다면 십 분의 여유를 만들고 그 뒤에 행동을 선택해보세요.',
+    quote: '멈춤은 포기가 아니라 더 나은 방향을 고르는 시간입니다.'
+  ),
+  (
+    id: 'support',
+    lead: '혼자 두지 말고',
+    intro: '이 마음을 혼자 감당해야 한다는 규칙은 어디에도 없어요.',
+    action: '믿을 수 있는 사람 한 명에게 지금 필요한 도움을 구체적으로 말해보세요.',
+    quote: '도움을 청하는 순간 외로웠던 짐의 무게가 나뉩니다.'
+  ),
+  (
+    id: 'record',
+    lead: '한 줄로 기록하며',
+    intro: '복잡한 마음을 완벽히 설명하려 애쓰지 않아도 돼요.',
+    action: '가장 마음에 남는 장면과 그때의 바람을 한 줄씩 적어보세요.',
+    quote: '기록은 흩어진 마음이 돌아올 작은 자리를 만듭니다.'
+  ),
+  (
+    id: 'kindness',
+    lead: '나를 다그치지 않고',
+    intro: '이미 충분히 애쓴 사람에게 더 큰 채찍은 필요하지 않아요.',
+    action: '오늘의 나에게 허락해주고 싶은 것을 하나 정해보세요.',
+    quote: '다정함은 느슨함이 아니라 다시 움직일 힘입니다.'
+  ),
+  (
+    id: 'choice',
+    lead: '내가 고를 수 있는 것부터',
+    intro: '바꿀 수 없는 것과 지금 선택할 수 있는 것을 나누어보세요.',
+    action: '내 손에 남아 있는 가장 작은 선택에 에너지를 모아보세요.',
+    quote: '작은 선택은 흔들리는 하루에 방향을 돌려줍니다.'
+  ),
+  (
+    id: 'rest',
+    lead: '회복을 먼저 두고',
+    intro: '지친 마음으로 내린 판단은 세상을 더 어둡게 보이게 할 수 있어요.',
+    action: '잠깐 눈을 감거나 짧게 걸으며 판단보다 회복을 먼저 챙겨보세요.',
+    quote: '쉼은 해야 할 일을 미루는 시간이 아니라 나를 되찾는 시간입니다.'
+  ),
+  (
+    id: 'tomorrow',
+    lead: '내일의 나에게 맡기며',
+    intro: '오늘 해결되지 않은 일이 실패를 뜻하지는 않아요.',
+    action: '내일 다시 볼 시간과 첫 행동을 정하고 오늘의 고민은 내려놓아보세요.',
+    quote: '내일로 미룬 걱정에는 다시 만날 약속이 필요합니다.'
+  ),
+  (
+    id: 'evidence',
+    lead: '해낸 일을 기억하며',
+    intro: '마음은 어려울 때 못한 일만 크게 보여주곤 해요.',
+    action: '최근에 버티거나 해낸 작은 일 세 가지를 떠올려보세요.',
+    quote: '지나온 증거는 앞으로 갈 힘을 조용히 증명합니다.'
+  ),
+  (
+    id: 'pace',
+    lead: '내 속도를 존중하며',
+    intro: '빠른 답보다 나에게 맞는 속도가 더 오래갑니다.',
+    action: '비교의 기준을 내려놓고 어제의 나보다 한 걸음만 정해보세요.',
+    quote: '나의 속도로 가는 길도 분명 앞으로 가는 길입니다.'
+  ),
+  (
+    id: 'need',
+    lead: '진짜 필요를 묻고',
+    intro: '감정 아래에는 이해받고 싶거나 쉬고 싶은 바람이 숨어 있어요.',
+    action: '지금 가장 필요한 것이 위로인지 해결인지 휴식인지 골라보세요.',
+    quote: '필요를 알아차리면 마음은 막연함에서 방향으로 움직입니다.'
+  ),
+  (
+    id: 'release',
+    lead: '내 몫만 남기며',
+    intro: '모든 책임과 모든 감정을 혼자 품을 필요는 없어요.',
+    action: '내 책임이 아닌 부분을 문장으로 구분하고 마음에서 내려놓아보세요.',
+    quote: '내 몫을 아는 사람은 불필요한 무게를 내려놓을 수 있습니다.'
+  ),
+  (
+    id: 'next',
+    lead: '다음 장면을 그리며',
+    intro: '지금의 장면이 이야기의 마지막은 아니에요.',
+    action: '상황이 조금 나아진 다음 장면과 그곳으로 가는 첫 행동을 떠올려보세요.',
+    quote: '다음 장면을 상상하는 마음은 이미 그쪽으로 움직이고 있습니다.'
+  ),
+];
+
+final storyDb = <StoryItem>[
+  for (final seed in _storySeeds) ...[
+    seed,
+    for (final expansion in _storyExpansions)
+      StoryItem(
+        id: '${seed.id}__${expansion.id}',
+        theme: seed.theme,
+        title: '${expansion.lead} ${seed.title}',
+        body: '${expansion.intro} ${seed.body} ${expansion.action}',
+        quote: expansion.quote,
+        keywords: seed.keywords,
+        emotions: seed.emotions,
+        categories: seed.categories,
+        styles: seed.styles,
+      ),
+  ],
 ];
