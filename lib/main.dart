@@ -254,7 +254,11 @@ class _AppShellState extends State<AppShell> {
         onStart: _startWriting,
         plantStore: _plantStore,
       ),
-      RecordsPage(records: records, onTabSelected: _selectTabFromRoute),
+      RecordsPage(
+        records: records,
+        onTabSelected: _selectTabFromRoute,
+        onShare: _shareSavedRecord,
+      ),
       EmpathyPage(
         posts: sharedPosts,
         currentUserId: currentUserId,
@@ -304,9 +308,7 @@ class _AppShellState extends State<AppShell> {
         sharedPosts.removeWhere((p) => p.ownerId == currentUserId);
         _plantResetVersion++;
       });
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('내 기록, 공유 데이터와 화분이 초기화되었습니다.')),
       );
     } catch (_) {
@@ -437,6 +439,56 @@ class _AppShellState extends State<AppShell> {
     Navigator.of(context).popUntil((route) => route.isFirst);
     setState(() => tabIndex = index);
     unawaited(AppAudioService.instance.setBgm(AppBgm.home));
+  }
+
+  Future<bool> _shareSavedRecord(EmotionRecord record) async {
+    if (record.shared) return true;
+    if (!AppFirebaseService.instance.hasLinkedAccount) {
+      final linked = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(
+          builder: (_) => AccountLinkPage(onTabSelected: _selectTabFromRoute),
+        ),
+      );
+      if (!mounted || linked != true) return false;
+    }
+
+    final sharedRecord = EmotionRecord(
+      id: record.id,
+      createdAt: record.createdAt,
+      category: record.category,
+      moodEmoji: record.moodEmoji,
+      moodLabel: record.moodLabel,
+      text: record.text,
+      story: record.story,
+      shared: true,
+    );
+    try {
+      await AppFirebaseService.instance.shareRecord(sharedRecord);
+      await _subscribeToSharedPosts();
+      final activeNickname = await AppFirebaseService.instance.loadNickname();
+      final activeAccountLabel =
+          await AppFirebaseService.instance.linkedAccountLabel();
+      if (!mounted) return false;
+      setState(() {
+        final index = records.indexWhere((item) => item.id == record.id);
+        if (index != -1) records[index] = sharedRecord;
+        currentUserId = AppFirebaseService.instance.userId;
+        nickname = activeNickname ?? nickname;
+        linkedAccountLabel = activeAccountLabel;
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('기록을 공감하기에 공유했습니다.')));
+      return true;
+    } catch (error, stackTrace) {
+      debugPrint('Saved record share error: $error\n$stackTrace');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('공유하지 못했습니다. 인터넷 연결을 확인하고 다시 시도해주세요.')),
+        );
+      }
+      return false;
+    }
   }
 
   int _todayWritingCount() {
@@ -2112,7 +2164,13 @@ StoryItem recommendStory(
 class RecordsPage extends StatefulWidget {
   final List<EmotionRecord> records;
   final ValueChanged<int>? onTabSelected;
-  const RecordsPage({super.key, required this.records, this.onTabSelected});
+  final Future<bool> Function(EmotionRecord)? onShare;
+  const RecordsPage({
+    super.key,
+    required this.records,
+    this.onTabSelected,
+    this.onShare,
+  });
   @override
   State<RecordsPage> createState() => _RecordsPageState();
 }
@@ -2193,6 +2251,7 @@ class _RecordsPageState extends State<RecordsPage> {
             month: month,
             records: monthly,
             onTabSelected: widget.onTabSelected,
+            onShare: widget.onShare,
           ),
           Card(
             child: Padding(
@@ -2226,12 +2285,14 @@ class CalendarGrid extends StatelessWidget {
   final int year, month;
   final List<EmotionRecord> records;
   final ValueChanged<int>? onTabSelected;
+  final Future<bool> Function(EmotionRecord)? onShare;
   const CalendarGrid({
     super.key,
     required this.year,
     required this.month,
     required this.records,
     this.onTabSelected,
+    this.onShare,
   });
 
   @override
@@ -2258,6 +2319,7 @@ class CalendarGrid extends StatelessWidget {
                         day: d,
                         records: list,
                         onTabSelected: onTabSelected,
+                        onShare: onShare,
                       ),
                     ),
                   ),
@@ -2338,11 +2400,13 @@ class RecordListSheet extends StatelessWidget {
   final int day;
   final List<EmotionRecord> records;
   final ValueChanged<int>? onTabSelected;
+  final Future<bool> Function(EmotionRecord)? onShare;
   const RecordListSheet({
     super.key,
     required this.day,
     required this.records,
     this.onTabSelected,
+    this.onShare,
   });
   @override
   Widget build(BuildContext context) => SafeArea(
@@ -2360,7 +2424,10 @@ class RecordListSheet extends StatelessWidget {
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (_) => RecordDetailPage(
-                          record: r, onTabSelected: onTabSelected),
+                        record: r,
+                        onTabSelected: onTabSelected,
+                        onShare: onShare,
+                      ),
                     ),
                   ),
                   child: Padding(
@@ -2404,17 +2471,42 @@ class RecordListSheet extends StatelessWidget {
       );
 }
 
-class RecordDetailPage extends StatelessWidget {
+class RecordDetailPage extends StatefulWidget {
   final EmotionRecord record;
   final ValueChanged<int>? onTabSelected;
-  const RecordDetailPage({super.key, required this.record, this.onTabSelected});
+  final Future<bool> Function(EmotionRecord)? onShare;
+  const RecordDetailPage({
+    super.key,
+    required this.record,
+    this.onTabSelected,
+    this.onShare,
+  });
+
+  @override
+  State<RecordDetailPage> createState() => _RecordDetailPageState();
+}
+
+class _RecordDetailPageState extends State<RecordDetailPage> {
+  late bool _shared = widget.record.shared;
+  bool _sharing = false;
+
+  Future<void> _share() async {
+    if (_sharing || _shared || widget.onShare == null) return;
+    setState(() => _sharing = true);
+    final succeeded = await widget.onShare!(widget.record);
+    if (!mounted) return;
+    setState(() {
+      _sharing = false;
+      if (succeeded) _shared = true;
+    });
+  }
 
   @override
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(title: const Text('감정 기록 상세')),
         bottomNavigationBar: AppBottomArea(
           selectedIndex: 1,
-          onSelected: onTabSelected ?? (_) {},
+          onSelected: widget.onTabSelected ?? (_) {},
         ),
         body: ListView(
           padding: const EdgeInsets.all(20),
@@ -2425,19 +2517,42 @@ class RecordDetailPage extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(record.moodEmoji,
-                        style: const TextStyle(fontSize: 52)),
+                    Text(
+                      widget.record.moodEmoji,
+                      style: const TextStyle(fontSize: 52),
+                    ),
                     const SizedBox(height: 8),
                     Text(
-                      record.moodLabel,
+                      widget.record.moodLabel,
                       style: const TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                     Text(
-                      '${record.category} · ${record.createdAt.year}.${record.createdAt.month.toString().padLeft(2, '0')}.${record.createdAt.day.toString().padLeft(2, '0')}',
+                      '${widget.record.category} · ${widget.record.createdAt.year}.${widget.record.createdAt.month.toString().padLeft(2, '0')}.${widget.record.createdAt.day.toString().padLeft(2, '0')}',
                     ),
+                    if (widget.onShare != null)
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: OutlinedButton.icon(
+                          onPressed: _shared || _sharing ? null : _share,
+                          icon: _sharing
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : Icon(
+                                  _shared ? Icons.check : Icons.share_outlined,
+                                  size: 18,
+                                ),
+                          label: Text(
+                            _sharing ? '공유 중...' : (_shared ? '공유 완료' : '공유하기'),
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -2452,7 +2567,9 @@ class RecordDetailPage extends StatelessWidget {
               child: Padding(
                 padding: const EdgeInsets.all(18),
                 child: Text(
-                  record.text.trim().isEmpty ? '작성한 내용이 없습니다.' : record.text,
+                  widget.record.text.trim().isEmpty
+                      ? '작성한 내용이 없습니다.'
+                      : widget.record.text,
                 ),
               ),
             ),
@@ -2468,19 +2585,19 @@ class RecordDetailPage extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Chip(label: Text(record.story.theme)),
+                    Chip(label: Text(widget.record.story.theme)),
                     Text(
-                      record.story.title,
+                      widget.record.story.title,
                       style: const TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                     const SizedBox(height: 10),
-                    Text(record.story.body),
+                    Text(widget.record.story.body),
                     const SizedBox(height: 12),
                     Text(
-                      record.story.quote,
+                      widget.record.story.quote,
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                   ],
@@ -2678,10 +2795,8 @@ class _CompactDateDropdown extends StatelessWidget {
         style: Theme.of(context).textTheme.bodyMedium,
         items: values
             .map(
-              (item) => DropdownMenuItem(
-                value: item,
-                child: Text('$item$suffix'),
-              ),
+              (item) =>
+                  DropdownMenuItem(value: item, child: Text('$item$suffix')),
             )
             .toList(),
         onChanged: (next) {
@@ -2824,9 +2939,8 @@ class MySharePage extends StatelessWidget {
                           Expanded(
                             child: Text(
                               '${p.category} · 내 공유',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.bold),
                             ),
                           ),
                           const SizedBox(width: 12),

@@ -117,6 +117,34 @@ class AppFirebaseService {
     await batch.commit();
   }
 
+  Future<void> shareRecord(EmotionRecord record) async {
+    final ownerId = userId;
+    final data = <String, Object?>{
+      'ownerId': ownerId,
+      'createdAt': Timestamp.fromDate(record.createdAt),
+      'category': record.category,
+      'moodEmoji': record.moodEmoji,
+      'moodLabel': record.moodLabel,
+      'text': record.text,
+      'storyId': record.story.id,
+      'shared': true,
+    };
+    final batch = _db.batch();
+    batch.set(
+      _db.collection('users').doc(ownerId).collection('records').doc(record.id),
+      data,
+      SetOptions(merge: true),
+    );
+    batch.set(_db.collection('sharedPosts').doc(record.id), {
+      ...data,
+      'reactions': [0, 0, 0],
+      'reactedBy': <String>[],
+      'reportCount': 0,
+      'reportedBy': <String>[],
+    });
+    await batch.commit();
+  }
+
   Future<void> react(SharedPost post, int reactionIndex) async {
     final ref = _db.collection('sharedPosts').doc(post.id);
     await _db.runTransaction((transaction) async {
@@ -139,8 +167,9 @@ class AppFirebaseService {
   }
 
   Future<ReportResult> report(SharedPost post) async {
-    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast3')
-        .httpsCallable('reportSharedPost');
+    final callable = FirebaseFunctions.instanceFor(
+      region: 'asia-northeast3',
+    ).httpsCallable('reportSharedPost');
     final response = await callable.call(<String, dynamic>{'postId': post.id});
     final data = Map<String, dynamic>.from(response.data as Map);
     return ReportResult(
