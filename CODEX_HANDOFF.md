@@ -1,14 +1,33 @@
 # Codex 인수인계
 
-작성일: 2026-07-12 (Asia/Seoul)
+작성일: 2026-07-18 (Asia/Seoul)
 
 ## 최신 상태
 
 - 기준 브랜치: `main`
-- 광고 영역 추가 커밋: `4162e57`
-- 병합 PR: [#4](https://github.com/ThebestDev9325/-/pull/4)
-- 병합 커밋: `9f79de3`
-- 광고 SDK는 아직 연동하지 않았고, 화면에 배너 자리만 예약한 상태다.
+- 현재 앱 버전: `1.9.15+31`
+- Android Google Play 내부 테스트 v31 업데이트 확인 완료
+- 저장된 비공개 기록의 다시 공유 기능까지 구현 완료
+- 공감 탭 연·월·일 선택과 날짜별 BEST 조회 구현 완료
+- 맞춤 위로 이야기 300개와 상황 분석 추천 구현 완료
+- 저장소: https://github.com/ThebestDev9325/-
+- 현재 확인된 즉시 수정 사항 없음
+
+## 최신 Android 배포
+
+- Play Console 내부 테스트 활성 버전: v31 (`1.9.15`)
+- 배포 AAB 이름: `chameulin-1.9.15-build31.aab`
+- 로컬 산출물: `C:\Users\user\Downloads\chameulin-1.9.15-build31.aab`
+- SHA-256: `829E331071172DE515D448B06C8D9A212FF07ABB7E289669ED67D7F65AE84A09`
+- v30의 versionCode 30은 Play Console에 한 번 등록되어 재사용할 수 없으므로 v31을 사용했다.
+
+## iOS 출시 인계
+
+- 친구의 Apple Developer 계정과 Mac에서 iOS 출시를 진행할 예정이다.
+- Mac에서 `git clone https://github.com/ThebestDev9325/-.git`로 같은 Flutter 프로젝트를 내려받는다.
+- 비공개 저장소라면 친구 GitHub 계정을 Collaborator로 먼저 초대한다.
+- Apple Bundle ID, Signing Team, 인증서, 프로비저닝 프로파일과 App Store Connect 앱 등록은 친구 계정 기준으로 설정해야 한다.
+- Android/Firebase/Kakao 설정과 별도로 iOS용 Firebase 및 Kakao 플랫폼 설정을 확인해야 한다.
 
 ## 광고 레이아웃
 
@@ -19,11 +38,11 @@
 - 밝은/어두운 테마의 `ColorScheme`을 사용하며, 현재 각 슬롯에 옆게 `광고`가 표시된다.
 - 슬롯 식별 키는 `bottom-ad-slot-1`, `bottom-ad-slot-2`이다.
 
-## 검증
+## 최신 검증
 
-- `test/widget_test.dart`에 두 광고 슬롯의 너비가 같고 전체 높이가 50px인지 확인하는 위젯 테스트가 있다.
-- 추가 당시 `flutter test` 2개가 모두 통과했다.
-- `flutter analyze`에는 변경과 무관한 기존 info 수준 경고 5개가 남아 있다.
+- `flutter analyze` 통과
+- 전체 `flutter test` 39개 통과
+- `flutter build appbundle --release` 성공
 
 ## APK v7
 
