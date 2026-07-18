@@ -59,11 +59,11 @@ class _ChameulinAppState extends State<ChameulinApp>
 
   @override
   Widget build(BuildContext context) {
-    final lightScheme = ColorScheme.fromSeed(seedColor: const Color(0xFF617A3F))
-        .copyWith(
-          surface: const Color(0xFFF7FAEC),
-          surfaceContainerLow: const Color(0xFFFBFDF4),
-        );
+    final lightScheme =
+        ColorScheme.fromSeed(seedColor: const Color(0xFF617A3F)).copyWith(
+      surface: const Color(0xFFF7FAEC),
+      surfaceContainerLow: const Color(0xFFFBFDF4),
+    );
     return MaterialApp(
       title: '참을인',
       debugShowCheckedModeBanner: false,
@@ -205,8 +205,8 @@ class _AppShellState extends State<AppShell> {
       final userId = await AppFirebaseService.instance.signIn();
       var savedNickname = await AppFirebaseService.instance.loadNickname();
       final savedRecords = await AppFirebaseService.instance.loadRecords();
-      final accountLabel = await AppFirebaseService.instance
-          .linkedAccountLabel();
+      final accountLabel =
+          await AppFirebaseService.instance.linkedAccountLabel();
       if (!mounted) return;
       setState(() {
         currentUserId = userId;
@@ -377,8 +377,8 @@ class _AppShellState extends State<AppShell> {
     final activeNickname = AppFirebaseService.instance.hasLinkedAccount
         ? await AppFirebaseService.instance.loadNickname()
         : nickname;
-    final activeAccountLabel = await AppFirebaseService.instance
-        .linkedAccountLabel();
+    final activeAccountLabel =
+        await AppFirebaseService.instance.linkedAccountLabel();
     if (!mounted) return;
     final record = EmotionRecord(
       id: DateTime.now().microsecondsSinceEpoch.toString(),
@@ -472,8 +472,8 @@ class _AppShellState extends State<AppShell> {
       final message = result.removed
           ? '신고가 5건 누적되어 공감 목록에서 자동으로 숨김 처리되었습니다.'
           : result.alreadyReported
-          ? '이미 신고한 사연입니다.'
-          : '신고가 접수되었습니다. (${result.reportCount}/5)';
+              ? '이미 신고한 사연입니다.'
+              : '신고가 접수되었습니다. (${result.reportCount}/5)';
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(message)));
@@ -498,58 +498,60 @@ class AppBottomArea extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      NavigationBar(
-        indicatorColor: const [
-          Color(0xFFFFE1C2),
-          Color(0xFFE7D9FF),
-          Color(0xFFFFD8DE),
-          Color(0xFFD8ECCA),
-          Color(0xFFFFE9B8),
-          Color(0xFFDCE2EA),
-        ][selectedIndex],
-        selectedIndex: selectedIndex,
-        onDestinationSelected: (index) {
-          unawaited(AppAudioService.instance.playButton());
-          onSelected(index);
-        },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined, color: Color(0xFFE9823B)),
-            selectedIcon: Icon(Icons.home, color: Color(0xFFD46B20)),
-            label: '홈',
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          NavigationBar(
+            indicatorColor: const [
+              Color(0xFFFFE1C2),
+              Color(0xFFE7D9FF),
+              Color(0xFFFFD8DE),
+              Color(0xFFD8ECCA),
+              Color(0xFFFFE9B8),
+              Color(0xFFDCE2EA),
+            ][selectedIndex],
+            selectedIndex: selectedIndex,
+            onDestinationSelected: (index) {
+              unawaited(AppAudioService.instance.playButton());
+              onSelected(index);
+            },
+            destinations: const [
+              NavigationDestination(
+                icon: Icon(Icons.home_outlined, color: Color(0xFFE9823B)),
+                selectedIcon: Icon(Icons.home, color: Color(0xFFD46B20)),
+                label: '홈',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.calendar_month_outlined,
+                    color: Color(0xFF8559B5)),
+                selectedIcon:
+                    Icon(Icons.calendar_month, color: Color(0xFF6F419F)),
+                label: '내 기록',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.favorite_border, color: Color(0xFFE15064)),
+                selectedIcon: Icon(Icons.favorite, color: Color(0xFFC9374E)),
+                label: '공감',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.eco_outlined, color: Color(0xFF55934E)),
+                selectedIcon: Icon(Icons.eco, color: Color(0xFF3E7B38)),
+                label: '내 공유',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.wb_sunny_outlined, color: Color(0xFFE4A52C)),
+                selectedIcon: Icon(Icons.wb_sunny, color: Color(0xFFC88A12)),
+                label: '긍정',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.settings_outlined, color: Color(0xFF6F7887)),
+                selectedIcon: Icon(Icons.settings, color: Color(0xFF535D6D)),
+                label: '설정',
+              ),
+            ],
           ),
-          NavigationDestination(
-            icon: Icon(Icons.calendar_month_outlined, color: Color(0xFF8559B5)),
-            selectedIcon: Icon(Icons.calendar_month, color: Color(0xFF6F419F)),
-            label: '내 기록',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.favorite_border, color: Color(0xFFE15064)),
-            selectedIcon: Icon(Icons.favorite, color: Color(0xFFC9374E)),
-            label: '공감',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.eco_outlined, color: Color(0xFF55934E)),
-            selectedIcon: Icon(Icons.eco, color: Color(0xFF3E7B38)),
-            label: '내 공유',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.wb_sunny_outlined, color: Color(0xFFE4A52C)),
-            selectedIcon: Icon(Icons.wb_sunny, color: Color(0xFFC88A12)),
-            label: '긍정',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.settings_outlined, color: Color(0xFF6F7887)),
-            selectedIcon: Icon(Icons.settings, color: Color(0xFF535D6D)),
-            label: '설정',
-          ),
+          const BottomAdSlots(),
         ],
-      ),
-      const BottomAdSlots(),
-    ],
-  );
+      );
 }
 
 class BottomAdSlots extends StatefulWidget {
@@ -607,9 +609,8 @@ class _BottomAdSlotsState extends State<BottomAdSlots> {
             Expanded(
               child: _AdSlot(
                 key: const ValueKey('bottom-ad-slot-1'),
-                label: _phase == 0
-                    ? '광고 영역 좌측 1: 조용한 밤의 위로'
-                    : '광고 영역 좌측 2: 비어 있음',
+                label:
+                    _phase == 0 ? '광고 영역 좌측 1: 조용한 밤의 위로' : '광고 영역 좌측 2: 비어 있음',
                 title: _phase == 0 ? '조용한 밤의 위로' : '',
                 color: Colors.white,
                 youtube: _phase == 0,
@@ -670,8 +671,8 @@ class _AdSlot extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
     final titleColor =
         youtube && Theme.of(context).brightness == Brightness.light
-        ? Colors.black87
-        : color;
+            ? Colors.black87
+            : color;
     return Semantics(
       label: label,
       button: onTap != null,
@@ -774,9 +775,8 @@ class _SplashNicknameFlowState extends State<SplashNicknameFlow> {
       canStartOffline = false;
     });
     try {
-      final available =
-          await (widget.claimNickname ??
-              AppFirebaseService.instance.claimNickname)(nick);
+      final available = await (widget.claimNickname ??
+          AppFirebaseService.instance.claimNickname)(nick);
       if (!mounted) return;
       if (!available) {
         setState(() {
@@ -923,8 +923,7 @@ class _SplashNicknameFlowState extends State<SplashNicknameFlow> {
   }
 }
 
-String weekdayPlantAsset(int weekday) =>
-    const [
+String weekdayPlantAsset(int weekday) => const [
       'assets/plants/monday_daisy.png',
       'assets/plants/tuesday_tulip.png',
       'assets/plants/wednesday_sunflower.png',
@@ -935,8 +934,8 @@ String weekdayPlantAsset(int weekday) =>
     ][weekday < DateTime.monday
         ? 0
         : weekday > DateTime.sunday
-        ? 6
-        : weekday - 1];
+            ? 6
+            : weekday - 1];
 
 class HomePage extends StatefulWidget {
   final VoidCallback onStart;
@@ -1443,184 +1442,186 @@ class _WritingFlowState extends State<WritingFlow> {
   }
 
   Widget _drawPage() => Padding(
-    padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          key: const ValueKey('writing-header'),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Expanded(
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  '참을인을 직접 써보세요.',
-                  maxLines: 1,
-                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-                ),
-              ),
-            ),
-            const SizedBox(width: 6),
-            TextButton.icon(
-              onPressed: showStrokeOrder,
-              icon: const Icon(Icons.animation),
-              label: const Text('획순 보기'),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Expanded(
-          child: GestureDetector(
-            onPanStart: (d) {
-              unawaited(AppAudioService.instance.playBrush());
-              setState(() => points.add(d.localPosition));
-            },
-            onPanUpdate: (d) => setState(() => points.add(d.localPosition)),
-            onPanEnd: (_) => setState(() => points.add(null)),
-            child: CustomPaint(
-              painter: DrawPainter(
-                points,
-                isDark: Theme.of(context).brightness == Brightness.dark,
-              ),
-              child: Container(
-                key: const ValueKey('writing-canvas'),
-                decoration: BoxDecoration(
-                  border: Border.all(
-                    color: Theme.of(context).brightness == Brightness.dark
-                        ? Colors.white70
-                        : Colors.black12,
-                  ),
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                child: const Center(
-                  child: Text(
-                    '忍',
-                    style: TextStyle(fontSize: 150, color: Color(0x22617A3F)),
+            Row(
+              key: const ValueKey('writing-header'),
+              children: [
+                const Expanded(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      '참을인을 직접 써보세요.',
+                      maxLines: 1,
+                      style:
+                          TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                    ),
                   ),
                 ),
-              ),
+                const SizedBox(width: 6),
+                TextButton.icon(
+                  onPressed: showStrokeOrder,
+                  icon: const Icon(Icons.animation),
+                  label: const Text('획순 보기'),
+                ),
+              ],
             ),
-          ),
-        ),
-        Row(
-          children: [
+            const SizedBox(height: 8),
             Expanded(
-              child: OutlinedButton(
-                onPressed: () => setState(points.clear),
-                child: const Text('지우기'),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: FilledButton(
-                onPressed: completeDrawing,
-                child: const Text('다 적었습니다'),
-              ),
-            ),
-          ],
-        ),
-      ],
-    ),
-  );
-
-  Widget _recordPage() => ListView(
-    padding: const EdgeInsets.all(20),
-    children: [
-      const Text(
-        '무슨 일이 있었나요?',
-        style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-      ),
-      const SizedBox(height: 12),
-      TextField(
-        controller: textController,
-        maxLines: 6,
-        decoration: const InputDecoration(
-          hintText: '예) 의욕만 앞서서 너무 실수가 잦다.',
-          border: OutlineInputBorder(),
-        ),
-      ),
-      const SizedBox(height: 24),
-      const Text(
-        '누구 때문에 화가 났나요?',
-        style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-      ),
-      const SizedBox(height: 12),
-      DropdownButtonFormField<String>(
-        initialValue: category,
-        items: categories
-            .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-            .toList(),
-        onChanged: (v) => setState(() => category = v!),
-        decoration: const InputDecoration(border: OutlineInputBorder()),
-      ),
-      const SizedBox(height: 20),
-      FilledButton(onPressed: next, child: const Text('다음')),
-    ],
-  );
-
-  Widget _moodPage() => Padding(
-    padding: const EdgeInsets.all(20),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const FittedBox(
-          fit: BoxFit.scaleDown,
-          alignment: Alignment.centerLeft,
-          child: Text(
-            '지금 감정은 어떤가요?',
-            maxLines: 1,
-            style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-          ),
-        ),
-        const SizedBox(height: 20),
-        Expanded(
-          child: GridView.count(
-            key: const ValueKey('mood-grid'),
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 2,
-            crossAxisSpacing: 10,
-            mainAxisSpacing: 10,
-            childAspectRatio: 1.35,
-            children: moods
-                .map(
-                  (m) => Card(
-                    color: moodEmoji == m.$1
-                        ? Theme.of(context).colorScheme.primaryContainer
-                        : null,
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(12),
-                      onTap: () {
-                        unawaited(AppAudioService.instance.playEmotion());
-                        setState(() {
-                          moodEmoji = m.$1;
-                          moodLabel = m.$2;
-                        });
-                        next();
-                      },
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(m.$1, style: const TextStyle(fontSize: 28)),
-                          FittedBox(
-                            child: Text(
-                              m.$2,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ],
+              child: GestureDetector(
+                onPanStart: (d) {
+                  unawaited(AppAudioService.instance.playBrush());
+                  setState(() => points.add(d.localPosition));
+                },
+                onPanUpdate: (d) => setState(() => points.add(d.localPosition)),
+                onPanEnd: (_) => setState(() => points.add(null)),
+                child: CustomPaint(
+                  painter: DrawPainter(
+                    points,
+                    isDark: Theme.of(context).brightness == Brightness.dark,
+                  ),
+                  child: Container(
+                    key: const ValueKey('writing-canvas'),
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? Colors.white70
+                            : Colors.black12,
+                      ),
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    child: const Center(
+                      child: Text(
+                        '忍',
+                        style:
+                            TextStyle(fontSize: 150, color: Color(0x22617A3F)),
                       ),
                     ),
                   ),
-                )
-                .toList(),
-          ),
+                ),
+              ),
+            ),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => setState(points.clear),
+                    child: const Text('지우기'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: completeDrawing,
+                    child: const Text('다 적었습니다'),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
-      ],
-    ),
-  );
+      );
+
+  Widget _recordPage() => ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          const Text(
+            '무슨 일이 있었나요?',
+            style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: textController,
+            maxLines: 6,
+            decoration: const InputDecoration(
+              hintText: '예) 의욕만 앞서서 너무 실수가 잦다.',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Text(
+            '누구 때문에 화가 났나요?',
+            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            initialValue: category,
+            items: categories
+                .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                .toList(),
+            onChanged: (v) => setState(() => category = v!),
+            decoration: const InputDecoration(border: OutlineInputBorder()),
+          ),
+          const SizedBox(height: 20),
+          FilledButton(onPressed: next, child: const Text('다음')),
+        ],
+      );
+
+  Widget _moodPage() => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                '지금 감정은 어떤가요?',
+                maxLines: 1,
+                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Expanded(
+              child: GridView.count(
+                key: const ValueKey('mood-grid'),
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisCount: 2,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+                childAspectRatio: 1.35,
+                children: moods
+                    .map(
+                      (m) => Card(
+                        color: moodEmoji == m.$1
+                            ? Theme.of(context).colorScheme.primaryContainer
+                            : null,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(12),
+                          onTap: () {
+                            unawaited(AppAudioService.instance.playEmotion());
+                            setState(() {
+                              moodEmoji = m.$1;
+                              moodLabel = m.$2;
+                            });
+                            next();
+                          },
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(m.$1, style: const TextStyle(fontSize: 28)),
+                              FittedBox(
+                                child: Text(
+                                  m.$2,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
+            ),
+          ],
+        ),
+      );
 
   Widget _storyPage() {
     final story = selectedStory ?? storyDb.first;
@@ -1974,47 +1975,47 @@ class _AccountNicknamePageState extends State<AccountNicknamePage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(),
-    body: SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              '계정에서 사용할\n닉네임을 정해주세요.',
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+        appBar: AppBar(),
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '계정에서 사용할\n닉네임을 정해주세요.',
+                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                const Text('공감하기와 내 공유에서 사용할 이름입니다.'),
+                const SizedBox(height: 24),
+                TextField(
+                  controller: controller,
+                  maxLength: 12,
+                  decoration: InputDecoration(
+                    hintText: '예) 따뜻한마음',
+                    errorText: errorText,
+                    border: const OutlineInputBorder(),
+                  ),
+                ),
+                const Spacer(),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: saving ? null : _save,
+                    child: saving
+                        ? const SizedBox.square(
+                            dimension: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('닉네임 사용하기'),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
-            const Text('공감하기와 내 공유에서 사용할 이름입니다.'),
-            const SizedBox(height: 24),
-            TextField(
-              controller: controller,
-              maxLength: 12,
-              decoration: InputDecoration(
-                hintText: '예) 따뜻한마음',
-                errorText: errorText,
-                border: const OutlineInputBorder(),
-              ),
-            ),
-            const Spacer(),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: saving ? null : _save,
-                child: saving
-                    ? const SizedBox.square(
-                        dimension: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('닉네임 사용하기'),
-              ),
-            ),
-          ],
+          ),
         ),
-      ),
-    ),
-  );
+      );
 }
 
 class DrawPainter extends CustomPainter {
@@ -2219,18 +2220,18 @@ class CalendarGrid extends StatelessWidget {
           onTap: list.isEmpty
               ? null
               : () => showModalBottomSheet(
-                  context: context,
-                  isScrollControlled: true,
-                  useSafeArea: true,
-                  builder: (_) => FractionallySizedBox(
-                    heightFactor: .78,
-                    child: RecordListSheet(
-                      day: d,
-                      records: list,
-                      onTabSelected: onTabSelected,
+                    context: context,
+                    isScrollControlled: true,
+                    useSafeArea: true,
+                    builder: (_) => FractionallySizedBox(
+                      heightFactor: .78,
+                      child: RecordListSheet(
+                        day: d,
+                        records: list,
+                        onTabSelected: onTabSelected,
+                      ),
                     ),
                   ),
-                ),
           child: Container(
             margin: const EdgeInsets.all(2),
             decoration: BoxDecoration(
@@ -2316,60 +2317,62 @@ class RecordListSheet extends StatelessWidget {
   });
   @override
   Widget build(BuildContext context) => SafeArea(
-    child: ListView(
-      padding: const EdgeInsets.all(18),
-      children: [
-        Text(
-          '$day일 기록 ${records.length}개',
-          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-        ),
-        ...records.map(
-          (r) => Card(
-            child: InkWell(
-              borderRadius: BorderRadius.circular(12),
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) =>
-                      RecordDetailPage(record: r, onTabSelected: onTabSelected),
-                ),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+        child: ListView(
+          padding: const EdgeInsets.all(18),
+          children: [
+            Text(
+              '$day일 기록 ${records.length}개',
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            ),
+            ...records.map(
+              (r) => Card(
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => RecordDetailPage(
+                          record: r, onTabSelected: onTabSelected),
+                    ),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(r.moodEmoji, style: const TextStyle(fontSize: 28)),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            '${r.moodLabel} · ${r.category}',
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
+                        Row(
+                          children: [
+                            Text(r.moodEmoji,
+                                style: const TextStyle(fontSize: 28)),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                '${r.moodLabel} · ${r.category}',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                            const Icon(Icons.chevron_right),
+                          ],
                         ),
-                        const Icon(Icons.chevron_right),
+                        const SizedBox(height: 10),
+                        const Text(
+                          '어떤 일이 있었나요?',
+                          style: TextStyle(fontSize: 12, color: Colors.black54),
+                        ),
+                        Text(
+                          r.text.trim().isEmpty ? '작성한 내용이 없습니다.' : r.text,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ],
                     ),
-                    const SizedBox(height: 10),
-                    const Text(
-                      '어떤 일이 있었나요?',
-                      style: TextStyle(fontSize: 12, color: Colors.black54),
-                    ),
-                    Text(
-                      r.text.trim().isEmpty ? '작성한 내용이 없습니다.' : r.text,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
+                  ),
                 ),
               ),
             ),
-          ),
+          ],
         ),
-      ],
-    ),
-  );
+      );
 }
 
 class RecordDetailPage extends StatelessWidget {
@@ -2379,151 +2382,201 @@ class RecordDetailPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('감정 기록 상세')),
-    bottomNavigationBar: AppBottomArea(
-      selectedIndex: 1,
-      onSelected: onTabSelected ?? (_) {},
-    ),
-    body: ListView(
-      padding: const EdgeInsets.all(20),
-      children: [
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(record.moodEmoji, style: const TextStyle(fontSize: 52)),
-                const SizedBox(height: 8),
-                Text(
-                  record.moodLabel,
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
+        appBar: AppBar(title: const Text('감정 기록 상세')),
+        bottomNavigationBar: AppBottomArea(
+          selectedIndex: 1,
+          onSelected: onTabSelected ?? (_) {},
+        ),
+        body: ListView(
+          padding: const EdgeInsets.all(20),
+          children: [
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(record.moodEmoji,
+                        style: const TextStyle(fontSize: 52)),
+                    const SizedBox(height: 8),
+                    Text(
+                      record.moodLabel,
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      '${record.category} · ${record.createdAt.year}.${record.createdAt.month.toString().padLeft(2, '0')}.${record.createdAt.day.toString().padLeft(2, '0')}',
+                    ),
+                  ],
                 ),
-                Text(
-                  '${record.category} · ${record.createdAt.year}.${record.createdAt.month.toString().padLeft(2, '0')}.${record.createdAt.day.toString().padLeft(2, '0')}',
-                ),
-              ],
+              ),
             ),
-          ),
-        ),
-        const SizedBox(height: 10),
-        const Text(
-          '어떤 일이 있었나요?',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 8),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(18),
-            child: Text(
-              record.text.trim().isEmpty ? '작성한 내용이 없습니다.' : record.text,
+            const SizedBox(height: 10),
+            const Text(
+              '어떤 일이 있었나요?',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
-          ),
-        ),
-        const SizedBox(height: 18),
-        const Text(
-          '그날 받은 이야기',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 8),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Chip(label: Text(record.story.theme)),
-                Text(
-                  record.story.title,
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
+            const SizedBox(height: 8),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Text(
+                  record.text.trim().isEmpty ? '작성한 내용이 없습니다.' : record.text,
                 ),
-                const SizedBox(height: 10),
-                Text(record.story.body),
-                const SizedBox(height: 12),
-                Text(
-                  record.story.quote,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ],
+              ),
             ),
-          ),
+            const SizedBox(height: 18),
+            const Text(
+              '그날 받은 이야기',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Chip(label: Text(record.story.theme)),
+                    Text(
+                      record.story.title,
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(record.story.body),
+                    const SizedBox(height: 12),
+                    Text(
+                      record.story.quote,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
-      ],
-    ),
-  );
+      );
 }
 
-class EmpathyPage extends StatelessWidget {
+class EmpathyPage extends StatefulWidget {
   final List<SharedPost> posts;
   final String currentUserId;
   final void Function(SharedPost, int) onReact;
   final ValueChanged<SharedPost> onReport;
+  final DateTime? now;
   const EmpathyPage({
     super.key,
     required this.posts,
     required this.currentUserId,
     required this.onReact,
     required this.onReport,
+    this.now,
   });
 
   @override
+  State<EmpathyPage> createState() => _EmpathyPageState();
+}
+
+class _EmpathyPageState extends State<EmpathyPage> {
+  late DateTime selectedDate;
+
+  DateTime get now => widget.now ?? DateTime.now();
+
+  @override
+  void initState() {
+    super.initState();
+    selectedDate = dateOnly(now);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final best = bestPostForDay(posts, DateTime.now());
-    return SafeArea(
-      child: ListView(
-        padding: const EdgeInsets.all(18),
-        children: [
-          const Text(
-            '공감하기',
-            style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
-          ),
-          if (posts.isEmpty)
-            const Card(
-              child: Padding(
-                padding: EdgeInsets.all(22),
-                child: Text(
-                  '아직 공유된 사연이 없습니다.\n첫 번째 따뜻한 공감을 기다리고 있어요.',
-                  textAlign: TextAlign.center,
-                ),
+    final dates = empathyDates(widget.posts, now);
+    final visiblePosts = postsForDay(widget.posts, selectedDate);
+    final best = bestPostForDay(visiblePosts, selectedDate);
+    final isToday = sameLocalDate(selectedDate, now);
+    return Material(
+      color: Colors.transparent,
+      child: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(18),
+          children: [
+            const Text(
+              '공감하기',
+              style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 42,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: dates.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                itemBuilder: (context, index) {
+                  final date = dates[index];
+                  return ChoiceChip(
+                    key: ValueKey('empathy-date-${localDateKey(date)}'),
+                    label: Text('${date.day}일'),
+                    selected: sameLocalDate(date, selectedDate),
+                    onSelected: (_) => setState(() => selectedDate = date),
+                  );
+                },
               ),
             ),
-          if (best != null)
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Chip(label: Text('오늘의 Best 사연')),
-                    Chip(
-                      label: Text(
-                        best.category.trim().isEmpty ? '기타' : best.category,
+            const SizedBox(height: 10),
+            if (visiblePosts.isEmpty)
+              const Card(
+                child: Padding(
+                  padding: EdgeInsets.all(22),
+                  child: Text(
+                    '선택한 날짜에 공유된 사연이 없습니다.',
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+            if (best != null)
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Chip(
+                        label: Text(
+                          isToday
+                              ? '오늘의 Best 사연'
+                              : '${selectedDate.day}일의 Best 사연',
+                        ),
                       ),
-                    ),
-                    Text(
-                      '🤬 화난다 공감 ${best.reactions[0]}개',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    Text(best.text),
-                  ],
+                      Chip(
+                        label: Text(
+                          best.category.trim().isEmpty ? '기타' : best.category,
+                        ),
+                      ),
+                      Text(
+                        '🤬 화난다 공감 ${best.reactions[0]}개',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      Text(best.text),
+                    ],
+                  ),
                 ),
               ),
+            ...visiblePosts.map(
+              (p) => SharedPostCard(
+                post: p,
+                mine: p.ownerId == widget.currentUserId,
+                reactionEnabled: isToday,
+                onReact: widget.onReact,
+                onReport: widget.onReport,
+              ),
             ),
-          ...posts.map(
-            (p) => SharedPostCard(
-              post: p,
-              mine: p.ownerId == currentUserId,
-              onReact: onReact,
-              onReport: onReport,
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -2532,62 +2585,67 @@ class EmpathyPage extends StatelessWidget {
 class SharedPostCard extends StatelessWidget {
   final SharedPost post;
   final bool mine;
+  final bool reactionEnabled;
   final void Function(SharedPost, int) onReact;
   final ValueChanged<SharedPost> onReport;
   const SharedPostCard({
     super.key,
     required this.post,
     required this.mine,
+    this.reactionEnabled = true,
     required this.onReact,
     required this.onReport,
   });
   @override
   Widget build(BuildContext context) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Chip(
-            label: Text(post.category.trim().isEmpty ? '기타' : post.category),
-          ),
-          Text(post.text),
-          if (mine)
-            const Padding(
-              padding: EdgeInsets.only(top: 8),
-              child: Text(
-                '내가 공유한 사연에는 직접 공감할 수 없습니다.',
-                style: TextStyle(fontSize: 12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Chip(
+                label:
+                    Text(post.category.trim().isEmpty ? '기타' : post.category),
               ),
-            ),
-          Row(
-            children: List.generate(
-              3,
-              (i) => Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.all(3),
-                  child: OutlinedButton(
-                    onPressed: mine || post.myReaction != null
-                        ? null
-                        : () => onReact(post, i),
-                    child: Text(
-                      '${['🤬', '😐', '🙂'][i]}\n${post.reactions[i]}',
-                      textAlign: TextAlign.center,
+              Text(post.text),
+              if (mine)
+                const Padding(
+                  padding: EdgeInsets.only(top: 8),
+                  child: Text(
+                    '내가 공유한 사연에는 직접 공감할 수 없습니다.',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                ),
+              Row(
+                children: List.generate(
+                  3,
+                  (i) => Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.all(3),
+                      child: OutlinedButton(
+                        onPressed:
+                            !reactionEnabled || mine || post.myReaction != null
+                                ? null
+                                : () => onReact(post, i),
+                        child: Text(
+                          '${['🤬', '😐', '🙂'][i]}\n${post.reactions[i]}',
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
+              TextButton.icon(
+                onPressed:
+                    mine || post.reportedByMe ? null : () => onReport(post),
+                icon: const Icon(Icons.report, color: Colors.red),
+                label: Text(post.reportedByMe ? '신고 완료' : '신고'),
+              ),
+            ],
           ),
-          TextButton.icon(
-            onPressed: mine || post.reportedByMe ? null : () => onReport(post),
-            icon: const Icon(Icons.report, color: Colors.red),
-            label: Text(post.reportedByMe ? '신고 완료' : '신고'),
-          ),
-        ],
-      ),
-    ),
-  );
+        ),
+      );
 }
 
 SharedPost? bestPostForDay(List<SharedPost> posts, DateTime now) {
@@ -2607,53 +2665,94 @@ SharedPost? bestPostForDay(List<SharedPost> posts, DateTime now) {
   return today.first;
 }
 
+DateTime dateOnly(DateTime date) {
+  final local = date.toLocal();
+  return DateTime(local.year, local.month, local.day);
+}
+
+bool sameLocalDate(DateTime first, DateTime second) {
+  final firstLocal = first.toLocal();
+  final secondLocal = second.toLocal();
+  return firstLocal.year == secondLocal.year &&
+      firstLocal.month == secondLocal.month &&
+      firstLocal.day == secondLocal.day;
+}
+
+List<SharedPost> postsForDay(List<SharedPost> posts, DateTime date) {
+  return posts.where((post) => sameLocalDate(post.createdAt, date)).toList();
+}
+
+List<DateTime> empathyDates(List<SharedPost> posts, DateTime now) {
+  final dates = <DateTime>{
+    dateOnly(now),
+    ...posts.map((post) => dateOnly(post.createdAt))
+  }.toList()
+    ..sort((a, b) => b.compareTo(a));
+  return dates;
+}
+
 class MySharePage extends StatelessWidget {
   final List<SharedPost> posts;
   const MySharePage({super.key, required this.posts});
   @override
   Widget build(BuildContext context) => SafeArea(
-    child: ListView(
-      padding: const EdgeInsets.all(18),
-      children: [
-        const Text(
-          '내 공유',
-          style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
-        ),
-        if (posts.isEmpty)
-          const Card(
-            child: Padding(
-              padding: EdgeInsets.all(18),
-              child: Text('아직 공유한 사연이 없습니다.'),
+        child: ListView(
+          padding: const EdgeInsets.all(18),
+          children: [
+            const Text(
+              '내 공유',
+              style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
             ),
-          ),
-        ...posts.map(
-          (p) => Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${p.category} · 내 공유',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  Text(p.text),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+            if (posts.isEmpty)
+              const Card(
+                child: Padding(
+                  padding: EdgeInsets.all(18),
+                  child: Text('아직 공유한 사연이 없습니다.'),
+                ),
+              ),
+            ...posts.map(
+              (p) => Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('🤬 ${p.reactions[0]}'),
-                      Text('😐 ${p.reactions[1]}'),
-                      Text('🙂 ${p.reactions[2]}'),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '${p.category} · 내 공유',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            '${p.createdAt.toLocal().month}/${p.createdAt.toLocal().day}',
+                            key: ValueKey('my-share-date-${p.id}'),
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                        ],
+                      ),
+                      Text(p.text),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          Text('🤬 ${p.reactions[0]}'),
+                          Text('😐 ${p.reactions[1]}'),
+                          Text('🙂 ${p.reactions[2]}'),
+                        ],
+                      ),
                     ],
                   ),
-                ],
+                ),
               ),
             ),
-          ),
+          ],
         ),
-      ],
-    ),
-  );
+      );
 }
 
 class PositivePage extends StatefulWidget {
@@ -2822,7 +2921,7 @@ class _PositivePageState extends State<PositivePage> {
               ),
               const SizedBox(height: 20),
               const Text(
-                '다음을 위해 우리의 긍정 에너지를\n아껴두는 건 어떨까요?',
+                '다음을 위해 우리의\n긍정 에너지를 아껴두는 건 어떨까요?',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 17, height: 1.55),
               ),
@@ -3016,95 +3115,96 @@ class SettingsPage extends StatelessWidget {
   });
   @override
   Widget build(BuildContext context) => SafeArea(
-    child: ListView(
-      padding: const EdgeInsets.all(18),
-      children: [
-        const Text(
-          '설정',
-          style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
-        ),
-        Card(
-          child: Column(
-            children: [
-              ListTile(
-                title: const Text('닉네임'),
-                subtitle: Text(nickname ?? '계정 연동 후 설정할 수 있어요'),
-              ),
-              ListTile(
-                title: const Text('연결 계정'),
-                subtitle: Text(linkedAccountLabel ?? '아직 연결된 계정 없음'),
-              ),
-            ],
-          ),
-        ),
-        Card(
-          child: Column(
-            children: [
-              SwitchListTile(
-                title: const Text('☀ 다크모드'),
-                value: darkMode,
-                onChanged: onDarkMode,
-              ),
-              SwitchListTile(
-                title: const Text('🔊 효과음'),
-                value: effectSound,
-                onChanged: onEffectSound,
-              ),
-              ListTile(
-                title: const Text('효과음 음량'),
-                subtitle: Slider(
-                  value: effectVolume,
-                  onChanged: effectSound ? onEffectVolume : null,
-                ),
-              ),
-              SwitchListTile(
-                title: const Text('🎵 배경음악'),
-                value: backgroundMusic,
-                onChanged: onBackgroundMusic,
-              ),
-              ListTile(
-                title: const Text('배경음악 음량'),
-                subtitle: Slider(
-                  value: backgroundVolume,
-                  onChanged: backgroundMusic ? onBackgroundVolume : null,
-                ),
-              ),
-            ],
-          ),
-        ),
-        Card(
-          child: Column(
-            children: [
-              ListTile(
-                title: const Text('내 데이터 삭제'),
-                trailing: TextButton(
-                  onPressed: () => _confirm(
-                    context,
-                    '내 데이터를 삭제할까요?',
-                    '휴대폰과 서버에 저장된 기록, 공유 글과 화분 성장이 삭제됩니다.',
-                    onDeleteData,
+        child: ListView(
+          padding: const EdgeInsets.all(18),
+          children: [
+            const Text(
+              '설정',
+              style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
+            ),
+            Card(
+              child: Column(
+                children: [
+                  ListTile(
+                    title: const Text('닉네임'),
+                    subtitle: Text(nickname ?? '계정 연동 후 설정할 수 있어요'),
                   ),
-                  child: const Text('삭제'),
-                ),
-              ),
-              ListTile(
-                title: const Text('회원탈퇴', style: TextStyle(color: Colors.red)),
-                trailing: TextButton(
-                  onPressed: () => _confirm(
-                    context,
-                    '회원탈퇴를 진행할까요?',
-                    '연동 계정과 모든 데이터가 삭제됩니다.',
-                    onDeleteAccount,
+                  ListTile(
+                    title: const Text('연결 계정'),
+                    subtitle: Text(linkedAccountLabel ?? '아직 연결된 계정 없음'),
                   ),
-                  child: const Text('탈퇴'),
-                ),
+                ],
               ),
-            ],
-          ),
+            ),
+            Card(
+              child: Column(
+                children: [
+                  SwitchListTile(
+                    title: const Text('☀ 다크모드'),
+                    value: darkMode,
+                    onChanged: onDarkMode,
+                  ),
+                  SwitchListTile(
+                    title: const Text('🔊 효과음'),
+                    value: effectSound,
+                    onChanged: onEffectSound,
+                  ),
+                  ListTile(
+                    title: const Text('효과음 음량'),
+                    subtitle: Slider(
+                      value: effectVolume,
+                      onChanged: effectSound ? onEffectVolume : null,
+                    ),
+                  ),
+                  SwitchListTile(
+                    title: const Text('🎵 배경음악'),
+                    value: backgroundMusic,
+                    onChanged: onBackgroundMusic,
+                  ),
+                  ListTile(
+                    title: const Text('배경음악 음량'),
+                    subtitle: Slider(
+                      value: backgroundVolume,
+                      onChanged: backgroundMusic ? onBackgroundVolume : null,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Card(
+              child: Column(
+                children: [
+                  ListTile(
+                    title: const Text('내 데이터 삭제'),
+                    trailing: TextButton(
+                      onPressed: () => _confirm(
+                        context,
+                        '내 데이터를 삭제할까요?',
+                        '휴대폰과 서버에 저장된 기록, 공유 글과 화분 성장이 삭제됩니다.',
+                        onDeleteData,
+                      ),
+                      child: const Text('삭제'),
+                    ),
+                  ),
+                  ListTile(
+                    title:
+                        const Text('회원탈퇴', style: TextStyle(color: Colors.red)),
+                    trailing: TextButton(
+                      onPressed: () => _confirm(
+                        context,
+                        '회원탈퇴를 진행할까요?',
+                        '연동 계정과 모든 데이터가 삭제됩니다.',
+                        onDeleteAccount,
+                      ),
+                      child: const Text('탈퇴'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
-      ],
-    ),
-  );
+      );
 
   static Future<void> _confirm(
     BuildContext context,
