@@ -68,7 +68,7 @@ void main() {
       ),
     ));
 
-    expect(find.textContaining('아직 공유된 사연이 없습니다'), findsOneWidget);
+    expect(find.textContaining('선택한 날짜에 공유된 사연이 없습니다'), findsOneWidget);
     expect(find.textContaining('회의에서 한마디'), findsNothing);
     expect(find.textContaining('무리한 요구'), findsNothing);
     expect(find.text('오늘의 Best 사연'), findsNothing);
