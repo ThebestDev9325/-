@@ -365,7 +365,6 @@ class _AppShellState extends State<AppShell> {
   Future<void> _startWriting() async {
     await AppAudioService.instance.playButton();
     if (!mounted) return;
-    if (!await ensureRecordNotice(context) || !mounted) return;
     final result = await Navigator.of(context).push<WritingResult>(
       MaterialPageRoute(
         builder: (_) => WritingFlow(
@@ -3429,58 +3428,15 @@ class SettingsPage extends StatelessWidget {
                       child: const Text('탈퇴'),
                     ),
                   ),
-                ],
-              ),
-            ),
-            const Padding(
-              padding: EdgeInsets.fromLTRB(4, 12, 4, 4),
-              child: Text(
-                '약관 및 정보',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-            ),
-            Card(
-              child: Column(
-                children: [
                   ListTile(
                     leading: const Icon(Icons.description_outlined),
-                    title: const Text('이용약관'),
+                    title: const Text('이용약관 등 보기'),
                     trailing: const Icon(Icons.chevron_right),
-                    onTap: () => _openLegal(context, LegalDocumentType.terms),
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.privacy_tip_outlined),
-                    title: const Text('개인정보처리방침'),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => _openLegal(context, LegalDocumentType.privacy),
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.groups_outlined),
-                    title: const Text('커뮤니티 운영정책'),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () =>
-                        _openLegal(context, LegalDocumentType.community),
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.health_and_safety_outlined),
-                    title: const Text('서비스 이용 안내'),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () =>
-                        _openLegal(context, LegalDocumentType.disclaimer),
-                  ),
-                  const ListTile(
-                    leading: Icon(Icons.verified_outlined),
-                    title: Text('동의 내역'),
-                    subtitle: Text(
-                      '$currentTermsEffectiveDate 동의 · $currentTermsVersion',
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const LegalDocumentsPage(),
+                      ),
                     ),
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.code),
-                    title: const Text('오픈소스 라이선스'),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => showLicensePage(
-                        context: context, applicationName: '참을인'),
                   ),
                 ],
               ),
@@ -3488,12 +3444,6 @@ class SettingsPage extends StatelessWidget {
           ],
         ),
       );
-
-  static void _openLegal(BuildContext context, LegalDocumentType type) {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => LegalDocumentPage(type: type)));
-  }
 
   static Future<void> _confirm(
     BuildContext context,
