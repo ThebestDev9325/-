@@ -15,7 +15,7 @@ void main() {
     final start = find.widgetWithText(FilledButton, '동의하고 시작하기');
     expect(tester.widget<FilledButton>(start).onPressed, isNull);
 
-    for (var index = 0; index < 3; index++) {
+    for (var index = 0; index < 4; index++) {
       await tester.tap(find.byType(Checkbox).at(index));
       await tester.pump();
     }
@@ -36,5 +36,14 @@ void main() {
     ));
     expect(find.text('이용약관'), findsOneWidget);
     expect(find.textContaining(currentTermsVersion), findsOneWidget);
+  });
+
+  testWidgets('이용약관 등 보기 화면에서 문서를 한곳에 모아 보여준다', (tester) async {
+    await tester.pumpWidget(const MaterialApp(home: LegalDocumentsPage()));
+
+    expect(find.text('이용약관'), findsOneWidget);
+    expect(find.text('개인정보처리방침'), findsOneWidget);
+    expect(find.text('커뮤니티 운영정책'), findsOneWidget);
+    expect(find.text('기록 및 서비스 이용 안내'), findsOneWidget);
   });
 }

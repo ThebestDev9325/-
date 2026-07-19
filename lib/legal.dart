@@ -9,7 +9,6 @@ class LegalConsentStore {
   static final instance = LegalConsentStore._();
 
   static const _termsKey = 'legal.terms_version';
-  static const _recordNoticeKey = 'legal.record_notice_seen';
   static const _communityKey = 'legal.community_policy_version';
 
   Future<bool> hasCurrentConsent() async {
@@ -20,16 +19,6 @@ class LegalConsentStore {
   Future<void> acceptCurrentTerms() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_termsKey, currentTermsVersion);
-  }
-
-  Future<bool> hasSeenRecordNotice() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_recordNoticeKey) ?? false;
-  }
-
-  Future<void> markRecordNoticeSeen() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_recordNoticeKey, true);
   }
 
   Future<bool> hasAcceptedCommunityPolicy() async {
@@ -105,6 +94,8 @@ extension LegalDocumentTypeText on LegalDocumentType {
 공유한 글은 다른 사용자가 보고 공감하거나 신고할 수 있습니다. 운영정책을 위반한 게시물은 신고 검토 후 제한 또는 삭제될 수 있습니다.''',
         LegalDocumentType.disclaimer => '''참을인은 감정을 기록하고 돌아보는 데 도움을 주는 서비스입니다.
 
+작성한 기록은 기본적으로 본인만 볼 수 있으며, 사용자가 직접 공유를 선택한 경우에만 공감 공간에 공개됩니다. 공유 전에는 이름, 연락처, 주소 등 개인을 알아볼 수 있는 정보가 포함되지 않았는지 확인해 주세요.
+
 참을인은 의료기관이나 전문 상담 서비스가 아니며, 제공되는 이야기와 반응은 의학적 진단이나 치료를 대신하지 않습니다.
 
 자신이나 다른 사람을 해칠 급박한 위험이 있다면 혼자 견디지 말고 즉시 주변의 믿을 수 있는 사람에게 알리고 112 또는 119 등 긴급기관에 도움을 요청해 주세요.''',
@@ -129,6 +120,66 @@ class LegalDocumentPage extends StatelessWidget {
             ),
             const SizedBox(height: 20),
             SelectableText(type.body, style: const TextStyle(height: 1.65)),
+          ],
+        ),
+      );
+}
+
+class LegalDocumentsPage extends StatelessWidget {
+  const LegalDocumentsPage({super.key});
+
+  void _open(BuildContext context, LegalDocumentType type) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => LegalDocumentPage(type: type)),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(title: const Text('이용약관 등 보기')),
+        body: ListView(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.description_outlined),
+              title: const Text('이용약관'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => _open(context, LegalDocumentType.terms),
+            ),
+            ListTile(
+              leading: const Icon(Icons.privacy_tip_outlined),
+              title: const Text('개인정보처리방침'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => _open(context, LegalDocumentType.privacy),
+            ),
+            ListTile(
+              leading: const Icon(Icons.groups_outlined),
+              title: const Text('커뮤니티 운영정책'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => _open(context, LegalDocumentType.community),
+            ),
+            ListTile(
+              leading: const Icon(Icons.health_and_safety_outlined),
+              title: const Text('기록 및 서비스 이용 안내'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => _open(context, LegalDocumentType.disclaimer),
+            ),
+            const Divider(),
+            const ListTile(
+              leading: Icon(Icons.verified_outlined),
+              title: Text('동의 내역'),
+              subtitle: Text(
+                '$currentTermsEffectiveDate 동의 · $currentTermsVersion',
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.code),
+              title: const Text('오픈소스 라이선스'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => showLicensePage(
+                context: context,
+                applicationName: '참을인',
+              ),
+            ),
           ],
         ),
       );
@@ -176,9 +227,10 @@ class InitialConsentPage extends StatefulWidget {
 class _InitialConsentPageState extends State<InitialConsentPage> {
   bool terms = false;
   bool privacy = false;
+  bool recordNotice = false;
   bool age = false;
 
-  bool get canContinue => terms && privacy && age;
+  bool get canContinue => terms && privacy && recordNotice && age;
 
   void _open(LegalDocumentType type) => Navigator.of(
         context,
@@ -217,6 +269,13 @@ class _InitialConsentPageState extends State<InitialConsentPage> {
                 privacy,
                 (v) => setState(() => privacy = v),
                 () => _open(LegalDocumentType.privacy),
+              ),
+              _check(
+                '필수',
+                '기록 및 서비스 이용 안내를 확인했습니다',
+                recordNotice,
+                (v) => setState(() => recordNotice = v),
+                () => _open(LegalDocumentType.disclaimer),
               ),
               _check(
                 '필수',
@@ -262,28 +321,6 @@ class _InitialConsentPageState extends State<InitialConsentPage> {
           controlAffinity: ListTileControlAffinity.leading,
         ),
       );
-}
-
-Future<bool> ensureRecordNotice(BuildContext context) async {
-  if (await LegalConsentStore.instance.hasSeenRecordNotice()) return true;
-  if (!context.mounted) return false;
-  final accepted = await showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('내 마음을 기록하는 공간'),
-      content: const Text(
-        '작성한 기록은 기본적으로 나만 볼 수 있으며, 직접 공유를 선택한 경우에만 공감 공간에 공개됩니다.\n\n참을인은 의료·상담 서비스가 아니며 의학적 진단이나 치료를 대신하지 않습니다.',
-      ),
-      actions: [
-        FilledButton(
-          onPressed: () => Navigator.pop(context, true),
-          child: const Text('확인하고 기록하기'),
-        ),
-      ],
-    ),
-  );
-  if (accepted == true) await LegalConsentStore.instance.markRecordNoticeSeen();
-  return accepted == true;
 }
 
 Future<bool> ensureCommunityPolicy(BuildContext context) async {
