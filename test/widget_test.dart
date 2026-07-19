@@ -7,12 +7,18 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:chameulin/main.dart';
+import 'package:chameulin/legal.dart';
 
 void main() {
   testWidgets('닉네임 입력 없이 홈 화면으로 바로 진입한다', (WidgetTester tester) async {
+    SharedPreferences.setMockInitialValues({
+      'legal.terms_version': currentTermsVersion,
+    });
     await tester.pumpWidget(const ChameulinApp());
+    await tester.pumpAndSettle();
     expect(find.text('참을인'), findsOneWidget);
     expect(find.text('내 마음을 위해'), findsOneWidget);
     expect(find.text('참을인 하나'), findsOneWidget);

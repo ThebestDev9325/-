@@ -3,13 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  testWidgets('계정 연동 안내 화면에 세 가지 가입 선택지가 표시된다', (tester) async {
+  testWidgets('계정 연동 안내 화면에는 카카오 선택지만 표시된다', (tester) async {
     await tester.pumpWidget(const MaterialApp(home: AccountLinkPage()));
 
     expect(find.text('공유하려면\n계정 연동이 필요합니다.'), findsOneWidget);
     expect(find.text('카카오로 계속하기'), findsOneWidget);
-    expect(find.text('Google로 계속하기 (준비 중)'), findsOneWidget);
-    expect(find.text('Apple로 계속하기 (준비 중)'), findsOneWidget);
+    expect(find.textContaining('Google'), findsNothing);
+    expect(find.textContaining('Apple'), findsNothing);
   });
 
   testWidgets('글쓰기 화면에는 페이지 숫자 표시가 없다', (tester) async {

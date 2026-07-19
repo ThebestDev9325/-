@@ -12,6 +12,7 @@ import 'data/story_db.dart';
 import 'firebase_options.dart';
 import 'firebase_service.dart';
 import 'kakao_auth_service.dart';
+import 'legal.dart';
 import 'models.dart';
 import 'plant_progress_store.dart';
 import 'text_layout.dart';
@@ -103,29 +104,31 @@ class _ChameulinAppState extends State<ChameulinApp>
           ),
         ),
       ),
-      home: AppShell(
-        darkMode: darkMode,
-        effectSound: effectSound,
-        backgroundMusic: backgroundMusic,
-        effectVolume: effectVolume,
-        backgroundVolume: backgroundVolume,
-        onDarkMode: (v) => setState(() => darkMode = v),
-        onEffectSound: (v) {
-          setState(() => effectSound = v);
-          unawaited(AppAudioService.instance.setEffectEnabled(v));
-        },
-        onBackgroundMusic: (v) {
-          setState(() => backgroundMusic = v);
-          unawaited(AppAudioService.instance.setBackgroundEnabled(v));
-        },
-        onEffectVolume: (v) {
-          setState(() => effectVolume = v);
-          unawaited(AppAudioService.instance.setEffectVolume(v));
-        },
-        onBackgroundVolume: (v) {
-          setState(() => backgroundVolume = v);
-          unawaited(AppAudioService.instance.setBackgroundVolume(v));
-        },
+      home: InitialConsentGate(
+        child: AppShell(
+          darkMode: darkMode,
+          effectSound: effectSound,
+          backgroundMusic: backgroundMusic,
+          effectVolume: effectVolume,
+          backgroundVolume: backgroundVolume,
+          onDarkMode: (v) => setState(() => darkMode = v),
+          onEffectSound: (v) {
+            setState(() => effectSound = v);
+            unawaited(AppAudioService.instance.setEffectEnabled(v));
+          },
+          onBackgroundMusic: (v) {
+            setState(() => backgroundMusic = v);
+            unawaited(AppAudioService.instance.setBackgroundEnabled(v));
+          },
+          onEffectVolume: (v) {
+            setState(() => effectVolume = v);
+            unawaited(AppAudioService.instance.setEffectVolume(v));
+          },
+          onBackgroundVolume: (v) {
+            setState(() => backgroundVolume = v);
+            unawaited(AppAudioService.instance.setBackgroundVolume(v));
+          },
+        ),
       ),
     );
   }
@@ -362,6 +365,7 @@ class _AppShellState extends State<AppShell> {
   Future<void> _startWriting() async {
     await AppAudioService.instance.playButton();
     if (!mounted) return;
+    if (!await ensureRecordNotice(context) || !mounted) return;
     final result = await Navigator.of(context).push<WritingResult>(
       MaterialPageRoute(
         builder: (_) => WritingFlow(
@@ -443,6 +447,7 @@ class _AppShellState extends State<AppShell> {
 
   Future<bool> _shareSavedRecord(EmotionRecord record) async {
     if (record.shared) return true;
+    if (!await ensureCommunityPolicy(context) || !mounted) return false;
     if (!AppFirebaseService.instance.hasLinkedAccount) {
       final linked = await Navigator.of(context).push<bool>(
         MaterialPageRoute(
@@ -1609,7 +1614,16 @@ class _WritingFlowState extends State<WritingFlow> {
             decoration: const InputDecoration(border: OutlineInputBorder()),
           ),
           const SizedBox(height: 20),
-          FilledButton(onPressed: next, child: const Text('다음')),
+          FilledButton(
+            onPressed: () async {
+              if (await showCrisisSupportIfNeeded(
+                      context, textController.text) &&
+                  mounted) {
+                next();
+              }
+            },
+            child: const Text('다음'),
+          ),
         ],
       );
 
@@ -1819,6 +1833,9 @@ class _WritingFlowState extends State<WritingFlow> {
                   ),
                   onPressed: () async {
                     unawaited(AppAudioService.instance.playButton());
+                    if (!await ensureCommunityPolicy(context) || !mounted) {
+                      return;
+                    }
                     if (!AppFirebaseService.instance.hasLinkedAccount) {
                       final linked = await Navigator.of(context).push<bool>(
                         MaterialPageRoute(
@@ -1866,6 +1883,27 @@ class _AccountLinkPageState extends State<AccountLinkPage> {
 
   Future<void> _signInWithKakao() async {
     if (signingIn) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('카카오 계정을 연결할까요?'),
+        content: const Text(
+          '계정을 연결하면 기기를 변경해도 저장된 기록을 다시 확인할 수 있습니다. '
+          '계정 연결을 위해 카카오 계정 식별 정보가 사용되며, 참을인은 카카오 비밀번호를 저장하지 않습니다.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('나중에 하기'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('카카오로 계속하기'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
     setState(() => signingIn = true);
     try {
       await KakaoAuthService.instance.signIn();
@@ -1928,29 +1966,6 @@ class _AccountLinkPageState extends State<AccountLinkPage> {
               color: const Color(0xFFFFE812),
               foreground: Colors.black87,
               onPressed: signingIn ? null : _signInWithKakao,
-            ),
-            const SizedBox(height: 12),
-            _accountButton(
-              icon: 'G',
-              label: 'Google로 계속하기 (준비 중)',
-              color: Colors.white,
-              foreground: Colors.black87,
-              bordered: true,
-              onPressed: null,
-            ),
-            const SizedBox(height: 12),
-            _accountButton(
-              icon: '●',
-              label: 'Apple로 계속하기 (준비 중)',
-              color: Colors.black,
-              foreground: Colors.white,
-              onPressed: null,
-            ),
-            const SizedBox(height: 18),
-            const Text(
-              '현재 카카오 계정 연동을 지원합니다.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 12, color: Colors.grey),
             ),
           ],
         ),
@@ -3341,6 +3356,52 @@ class SettingsPage extends StatelessWidget {
               child: Column(
                 children: [
                   ListTile(
+                    leading: const Icon(Icons.description_outlined),
+                    title: const Text('이용약관'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => _openLegal(context, LegalDocumentType.terms),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.privacy_tip_outlined),
+                    title: const Text('개인정보처리방침'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => _openLegal(context, LegalDocumentType.privacy),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.groups_outlined),
+                    title: const Text('커뮤니티 운영정책'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () =>
+                        _openLegal(context, LegalDocumentType.community),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.health_and_safety_outlined),
+                    title: const Text('서비스 이용 안내'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () =>
+                        _openLegal(context, LegalDocumentType.disclaimer),
+                  ),
+                  const ListTile(
+                    leading: Icon(Icons.verified_outlined),
+                    title: Text('동의 내역'),
+                    subtitle: Text(
+                      '$currentTermsEffectiveDate 동의 · $currentTermsVersion',
+                    ),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.code),
+                    title: const Text('오픈소스 라이선스'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => showLicensePage(
+                        context: context, applicationName: '참을인'),
+                  ),
+                ],
+              ),
+            ),
+            Card(
+              child: Column(
+                children: [
+                  ListTile(
                     title: const Text('닉네임'),
                     subtitle: Text(nickname ?? '계정 연동 후 설정할 수 있어요'),
                   ),
@@ -3395,7 +3456,7 @@ class SettingsPage extends StatelessWidget {
                       onPressed: () => _confirm(
                         context,
                         '내 데이터를 삭제할까요?',
-                        '휴대폰과 서버에 저장된 기록, 공유 글과 화분 성장이 삭제됩니다.',
+                        '감정 기록, 공유 글과 화분 성장이 영구적으로 삭제되며 복구할 수 없습니다. 계정 연결은 유지됩니다.',
                         onDeleteData,
                       ),
                       child: const Text('삭제'),
@@ -3408,7 +3469,7 @@ class SettingsPage extends StatelessWidget {
                       onPressed: () => _confirm(
                         context,
                         '회원탈퇴를 진행할까요?',
-                        '연동 계정과 모든 데이터가 삭제됩니다.',
+                        '연동 계정, 감정 기록과 공유한 글이 삭제되며 복구할 수 없습니다. 앱 삭제만으로는 회원탈퇴가 완료되지 않습니다.',
                         onDeleteAccount,
                       ),
                       child: const Text('탈퇴'),
@@ -3420,6 +3481,12 @@ class SettingsPage extends StatelessWidget {
           ],
         ),
       );
+
+  static void _openLegal(BuildContext context, LegalDocumentType type) {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => LegalDocumentPage(type: type)));
+  }
 
   static Future<void> _confirm(
     BuildContext context,
