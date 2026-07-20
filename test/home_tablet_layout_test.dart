@@ -17,6 +17,13 @@ void main() {
       tester.getSize(find.byKey(const ValueKey('home-writing-card'))).height,
       greaterThan(250),
     );
+    final headerBottom = tester
+        .getBottomRight(find.byKey(const ValueKey('home-header')))
+        .dy;
+    final sloganBottom = tester
+        .getBottomRight(find.byKey(const ValueKey('home-slogan-second-line')))
+        .dy;
+    expect(sloganBottom, lessThanOrEqualTo(headerBottom - 4));
     expect(tester.takeException(), isNull);
   });
 

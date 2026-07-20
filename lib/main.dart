@@ -1093,7 +1093,7 @@ class _HomePageState extends State<HomePage>
           constraints.maxWidth >= 900 && constraints.maxHeight <= 650;
       final pagePadding = compactTabletLandscape ? 16.0 : 22.0;
       final headerHeight = compactTabletLandscape ? 150.0 : 210.0;
-      final sloganTop = compactTabletLandscape ? 58.0 : 78.0;
+      final sloganTop = compactTabletLandscape ? 50.0 : 78.0;
       final plantWidth = compactTabletLandscape ? 130.0 : 150.0;
 
       return SafeArea(
