@@ -1088,124 +1088,134 @@ class _HomePageState extends State<HomePage>
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(22),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-              height: 210,
-              child: Stack(
-                children: [
-                  Positioned(
-                    left: 0,
-                    top: 0,
-                    child: Text(
-                      '참을인',
-                      style: TextStyle(
-                        fontSize: 34,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.primary,
+    return LayoutBuilder(builder: (context, constraints) {
+      final compactTabletLandscape =
+          constraints.maxWidth >= 900 && constraints.maxHeight <= 650;
+      final pagePadding = compactTabletLandscape ? 16.0 : 22.0;
+      final headerHeight = compactTabletLandscape ? 150.0 : 210.0;
+      final sloganTop = compactTabletLandscape ? 58.0 : 78.0;
+      final plantWidth = compactTabletLandscape ? 130.0 : 150.0;
+
+      return SafeArea(
+        child: Padding(
+          padding: EdgeInsets.all(pagePadding),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                key: const ValueKey('home-header'),
+                height: headerHeight,
+                child: Stack(
+                  children: [
+                    Positioned(
+                      left: 0,
+                      top: 0,
+                      child: Text(
+                        '참을인',
+                        style: TextStyle(
+                          fontSize: 34,
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
                       ),
                     ),
-                  ),
-                  const Positioned(
-                    left: 0,
-                    top: 78,
-                    child: SizedBox(
-                      width: 248,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          FittedBox(
-                            fit: BoxFit.scaleDown,
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              '내 마음을 위해',
-                              key: ValueKey('home-slogan-first-line'),
+                    Positioned(
+                      left: 0,
+                      top: sloganTop,
+                      child: const SizedBox(
+                        width: 248,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                '내 마음을 위해',
+                                key: ValueKey('home-slogan-first-line'),
+                                style: TextStyle(
+                                  fontSize: 34,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            SizedBox(height: 8),
+                            Text(
+                              '참을인 하나',
+                              key: ValueKey('home-slogan-second-line'),
                               style: TextStyle(
                                 fontSize: 34,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
-                          ),
-                          SizedBox(height: 8),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      right: 0,
+                      top: 0,
+                      child: SizedBox(
+                        width: plantWidth,
+                        height: headerHeight,
+                        child: _WeekdayPlant(
+                          date: _now,
+                          stage: _stage,
+                          tapCount: _tapCount,
+                          tapAnimation: _tapController,
+                          onTap: _growPlant,
+                          revealFraction: _revealFractions[_stage],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(height: compactTabletLandscape ? 6 : 8),
+              Expanded(
+                child: Container(
+                  key: const ValueKey('home-writing-card'),
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surfaceContainerLow,
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  child: const Center(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
                           Text(
-                            '참을인 하나',
-                            key: ValueKey('home-slogan-second-line'),
+                            '忍',
                             style: TextStyle(
-                              fontSize: 34,
-                              fontWeight: FontWeight.bold,
+                              fontSize: 130,
+                              color: Color(0xFF617A3F),
                             ),
+                          ),
+                          Text(
+                            '참을 인을 써봅시다',
+                            style: TextStyle(fontWeight: FontWeight.bold),
                           ),
                         ],
                       ),
                     ),
                   ),
-                  Positioned(
-                    right: 0,
-                    top: 0,
-                    child: SizedBox(
-                      width: 150,
-                      height: 210,
-                      child: _WeekdayPlant(
-                        date: _now,
-                        stage: _stage,
-                        tapCount: _tapCount,
-                        tapAnimation: _tapController,
-                        onTap: _growPlant,
-                        revealFraction: _revealFractions[_stage],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 8),
-            Expanded(
-              child: Container(
-                key: const ValueKey('home-writing-card'),
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceContainerLow,
-                  borderRadius: BorderRadius.circular(30),
-                ),
-                child: const Center(
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          '忍',
-                          style: TextStyle(
-                            fontSize: 130,
-                            color: Color(0xFF617A3F),
-                          ),
-                        ),
-                        Text(
-                          '참을 인을 써봅시다',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
-                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 12),
-            FilledButton(
-              onPressed: widget.onStart,
-              child: const SizedBox(
-                width: double.infinity,
-                child: Center(child: Text('시작하기')),
+              SizedBox(height: compactTabletLandscape ? 8 : 12),
+              FilledButton(
+                onPressed: widget.onStart,
+                child: const SizedBox(
+                  width: double.infinity,
+                  child: Center(child: Text('시작하기')),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
-    );
+      );
+    });
   }
 }
 
@@ -3434,8 +3444,7 @@ class SettingsPage extends StatelessWidget {
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (_) => const LegalDocumentsPage(),
-                      ),
+                          builder: (_) => const LegalDocumentsPage()),
                     ),
                   ),
                 ],
