@@ -3038,6 +3038,7 @@ class _PositivePageState extends State<PositivePage> {
     _random = widget.random ?? Random();
     _dateKey = localDateKey(_now);
     _current = _randomPair();
+    _todayPairs.add(_current);
     unawaited(_restoreToday());
     unawaited(_restoreBookmarks());
     _scheduleMidnightReset();
@@ -3075,7 +3076,11 @@ class _PositivePageState extends State<PositivePage> {
   Future<void> _restoreToday() async {
     try {
       final saved = await _store.load();
-      if (!mounted || saved == null || saved.dateKey != _dateKey) return;
+      if (!mounted) return;
+      if (saved == null || saved.dateKey != _dateKey) {
+        await _saveToday();
+        return;
+      }
       final validPairs = saved.pairs
           .where(
             (pair) =>
@@ -3093,7 +3098,7 @@ class _PositivePageState extends State<PositivePage> {
           ..addAll(validPairs);
         _current = _todayPairs.last;
         _reviewCursor = -1;
-        _showingQuote = _todayPairs.length.isOdd;
+        _showingQuote = _todayPairs.length.isEven;
       });
     } catch (error) {
       debugPrint('Daily positive restore error: $error');
@@ -3177,18 +3182,21 @@ class _PositivePageState extends State<PositivePage> {
     if (today != _dateKey) {
       setState(() {
         _dateKey = today;
-        _todayPairs.clear();
         _reviewCursor = -1;
         _current = _randomPair();
+        _todayPairs
+          ..clear()
+          ..add(_current);
         _showingQuote = false;
       });
+      await _saveToday();
     }
 
     if (_todayPairs.length >= _dailyLimit) {
       setState(() {
         _reviewCursor = (_reviewCursor + 1) % _todayPairs.length;
         _current = _todayPairs[_reviewCursor];
-        _showingQuote = (_reviewCursor + 1).isOdd;
+        _showingQuote = (_reviewCursor + 1).isEven;
       });
       return;
     }
@@ -3198,7 +3206,7 @@ class _PositivePageState extends State<PositivePage> {
       _todayPairs.add(nextPair);
       _current = nextPair;
       _reviewCursor = -1;
-      _showingQuote = _todayPairs.length.isOdd;
+      _showingQuote = _todayPairs.length.isEven;
     });
     await _saveToday();
 
@@ -3260,9 +3268,11 @@ class _PositivePageState extends State<PositivePage> {
       if (!mounted) return;
       setState(() {
         _dateKey = localDateKey(DateTime.now());
-        _todayPairs.clear();
         _reviewCursor = -1;
         _current = _randomPair();
+        _todayPairs
+          ..clear()
+          ..add(_current);
         _showingQuote = false;
       });
       unawaited(_saveToday());
