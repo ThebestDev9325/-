@@ -37,6 +37,7 @@ void main() {
     expect(find.text('오늘의 명언'), findsNothing);
     expect(find.byKey(const ValueKey('positive-story-card')), findsOneWidget);
     expect(find.byKey(const ValueKey('daily-quote-card')), findsNothing);
+    expect(store.state?.pairs, hasLength(1));
     expect(
       tester
           .widget<Card>(
@@ -55,11 +56,19 @@ void main() {
       const Color(0xFFFFECA8),
     );
 
-    for (var count = 1; count <= 3; count++) {
+    final seenContent = <String>{
+      tester
+          .widget<Text>(
+            find.byKey(const ValueKey('positive-story-title')),
+          )
+          .data!,
+    };
+
+    for (var count = 2; count <= 3; count++) {
       await tester.tap(find.text('다른 긍정 보기'));
       await tester.pumpAndSettle();
       expect(store.state?.pairs.length, count);
-      final shouldShowQuote = count.isOdd;
+      final shouldShowQuote = count.isEven;
       expect(
         find.byKey(const ValueKey('daily-quote-card')),
         shouldShowQuote ? findsOneWidget : findsNothing,
@@ -68,7 +77,7 @@ void main() {
         find.byKey(const ValueKey('positive-story-card')),
         shouldShowQuote ? findsNothing : findsOneWidget,
       );
-      if (count == 1) {
+      if (count == 2) {
         expect(
           tester
               .widget<Card>(
@@ -96,6 +105,17 @@ void main() {
           19,
         );
       }
+      seenContent.add(
+        tester
+            .widget<Text>(
+              find.byKey(
+                shouldShowQuote
+                    ? const ValueKey('daily-quote-text')
+                    : const ValueKey('positive-story-title'),
+              ),
+            )
+            .data!,
+      );
       if (count < 3) {
         expect(find.text('다른 긍정 보기'), findsOneWidget);
       }
@@ -109,6 +129,7 @@ void main() {
       3,
     );
     expect(store.state?.pairs.map((pair) => pair.quoteIndex).toSet().length, 3);
+    expect(seenContent, hasLength(3));
 
     await tester.tap(find.text('마음 돌보기'));
     await tester.pumpAndSettle();
@@ -117,10 +138,10 @@ void main() {
     final firstPair = store.state!.pairs.first;
     await tester.tap(find.text('오늘 긍정 다시 보기'));
     await tester.pumpAndSettle();
-    final quote = tester.widget<Text>(
-      find.byKey(const ValueKey('daily-quote-text')),
+    final firstStory = tester.widget<Text>(
+      find.byKey(const ValueKey('positive-story-title')),
     );
-    expect(quote.data, isNotEmpty);
+    expect(firstStory.data, isNotEmpty);
     expect(store.state!.pairs.first.positiveIndex, firstPair.positiveIndex);
   });
 
