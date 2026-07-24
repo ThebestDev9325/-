@@ -15,6 +15,7 @@ import 'kakao_auth_service.dart';
 import 'legal.dart';
 import 'models.dart';
 import 'plant_progress_store.dart';
+import 'positive_bookmark_store.dart';
 import 'text_layout.dart';
 
 Future<void> main() async {
@@ -2996,10 +2997,17 @@ class MySharePage extends StatelessWidget {
 
 class PositivePage extends StatefulWidget {
   final DailyPositiveStore? store;
+  final PositiveBookmarkStore? bookmarkStore;
   final Random? random;
   final DateTime Function()? now;
 
-  const PositivePage({super.key, this.store, this.random, this.now});
+  const PositivePage({
+    super.key,
+    this.store,
+    this.bookmarkStore,
+    this.random,
+    this.now,
+  });
 
   @override
   State<PositivePage> createState() => _PositivePageState();
@@ -3008,10 +3016,13 @@ class PositivePage extends StatefulWidget {
 class _PositivePageState extends State<PositivePage> {
   static const _dailyLimit = 3;
   late final DailyPositiveStore _store;
+  late final PositiveBookmarkStore _bookmarkStore;
   late final Random _random;
   late String _dateKey;
   late DailyPositivePair _current;
   final List<DailyPositivePair> _todayPairs = [];
+  final Set<int> _bookmarkedPositiveIndexes = {};
+  final Set<int> _bookmarkedQuoteIndexes = {};
   int _reviewCursor = -1;
   bool _showingQuote = false;
   Timer? _midnightTimer;
@@ -3022,10 +3033,13 @@ class _PositivePageState extends State<PositivePage> {
   void initState() {
     super.initState();
     _store = widget.store ?? SharedPreferencesDailyPositiveStore();
+    _bookmarkStore =
+        widget.bookmarkStore ?? SharedPreferencesPositiveBookmarkStore();
     _random = widget.random ?? Random();
     _dateKey = localDateKey(_now);
     _current = _randomPair();
     unawaited(_restoreToday());
+    unawaited(_restoreBookmarks());
     _scheduleMidnightReset();
   }
 
@@ -3097,6 +3111,65 @@ class _PositivePageState extends State<PositivePage> {
     } catch (error) {
       debugPrint('Daily positive save error: $error');
     }
+  }
+
+  Future<void> _restoreBookmarks() async {
+    try {
+      final saved = await _bookmarkStore.load();
+      if (!mounted) return;
+      setState(() {
+        _bookmarkedPositiveIndexes
+          ..clear()
+          ..addAll(
+            saved.positiveIndexes.where(
+              (index) => index >= 0 && index < positiveStories.length,
+            ),
+          );
+        _bookmarkedQuoteIndexes
+          ..clear()
+          ..addAll(
+            saved.quoteIndexes.where(
+              (index) => index >= 0 && index < dailyQuotes.length,
+            ),
+          );
+      });
+    } catch (error) {
+      debugPrint('Positive bookmark restore error: $error');
+    }
+  }
+
+  Future<void> _toggleBookmark({
+    required bool isQuote,
+    required int index,
+  }) async {
+    final bookmarks =
+        isQuote ? _bookmarkedQuoteIndexes : _bookmarkedPositiveIndexes;
+    setState(() {
+      if (!bookmarks.remove(index)) bookmarks.add(index);
+    });
+    try {
+      await _bookmarkStore.save(
+        PositiveBookmarkState(
+          positiveIndexes: Set<int>.unmodifiable(_bookmarkedPositiveIndexes),
+          quoteIndexes: Set<int>.unmodifiable(_bookmarkedQuoteIndexes),
+        ),
+      );
+    } catch (error) {
+      debugPrint('Positive bookmark save error: $error');
+    }
+  }
+
+  Future<void> _openBookmarks() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => PositiveBookmarksPage(
+          positiveIndexes: _bookmarkedPositiveIndexes,
+          quoteIndexes: _bookmarkedQuoteIndexes,
+          onToggle: _toggleBookmark,
+        ),
+      ),
+    );
+    if (mounted) setState(() {});
   }
 
   Future<void> _handleButton() async {
@@ -3209,6 +3282,11 @@ class _PositivePageState extends State<PositivePage> {
     final cardColor = _showingQuote
         ? (isDark ? const Color(0xFF27381F) : const Color(0xFFF0F7E5))
         : (isDark ? const Color(0xFF403711) : const Color(0xFFFFF7D9));
+    final currentIndex =
+        _showingQuote ? _current.quoteIndex : _current.positiveIndex;
+    final isBookmarked = _showingQuote
+        ? _bookmarkedQuoteIndexes.contains(currentIndex)
+        : _bookmarkedPositiveIndexes.contains(currentIndex);
     return SafeArea(
       child: Column(
         children: [
@@ -3217,27 +3295,35 @@ class _PositivePageState extends State<PositivePage> {
               key: const ValueKey('positive-story-scroll'),
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
               children: [
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Container(
-                    key: const ValueKey('positive-heading-surface'),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: headingColor,
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    child: Text(
-                      _showingQuote ? '오늘의 명언' : '오늘의 긍정',
-                      key: const ValueKey('positive-page-heading'),
-                      style: const TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.bold,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      key: const ValueKey('positive-heading-surface'),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: headingColor,
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: Text(
+                        _showingQuote ? '오늘의 명언' : '오늘의 긍정',
+                        key: const ValueKey('positive-page-heading'),
+                        style: const TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
-                  ),
+                    OutlinedButton.icon(
+                      key: const ValueKey('positive-bookmarks-button'),
+                      onPressed: _openBookmarks,
+                      icon: const Icon(Icons.bookmarks_outlined, size: 19),
+                      label: const Text('보관함'),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 20),
                 if (!_showingQuote)
@@ -3271,6 +3357,23 @@ class _PositivePageState extends State<PositivePage> {
                               ),
                             ),
                           ],
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: IconButton(
+                              key: const ValueKey('positive-bookmark-heart'),
+                              tooltip: isBookmarked ? '보관함에서 삭제' : '보관함에 저장',
+                              onPressed: () => _toggleBookmark(
+                                isQuote: false,
+                                index: _current.positiveIndex,
+                              ),
+                              icon: Icon(
+                                isBookmarked
+                                    ? Icons.favorite
+                                    : Icons.favorite_border,
+                                color: const Color(0xFFE54866),
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -3299,6 +3402,23 @@ class _PositivePageState extends State<PositivePage> {
                               ).colorScheme.onSurfaceVariant,
                             ),
                           ),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: IconButton(
+                              key: const ValueKey('positive-bookmark-heart'),
+                              tooltip: isBookmarked ? '보관함에서 삭제' : '보관함에 저장',
+                              onPressed: () => _toggleBookmark(
+                                isQuote: true,
+                                index: _current.quoteIndex,
+                              ),
+                              icon: Icon(
+                                isBookmarked
+                                    ? Icons.favorite
+                                    : Icons.favorite_border,
+                                color: const Color(0xFFE54866),
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -3325,6 +3445,173 @@ class _PositivePageState extends State<PositivePage> {
       ),
     );
   }
+}
+
+class PositiveBookmarksPage extends StatefulWidget {
+  final Set<int> positiveIndexes;
+  final Set<int> quoteIndexes;
+  final Future<void> Function({
+    required bool isQuote,
+    required int index,
+  }) onToggle;
+
+  const PositiveBookmarksPage({
+    super.key,
+    required this.positiveIndexes,
+    required this.quoteIndexes,
+    required this.onToggle,
+  });
+
+  @override
+  State<PositiveBookmarksPage> createState() => _PositiveBookmarksPageState();
+}
+
+class _PositiveBookmarksPageState extends State<PositiveBookmarksPage> {
+  Future<void> _remove({
+    required bool isQuote,
+    required int index,
+  }) async {
+    await widget.onToggle(isQuote: isQuote, index: index);
+    if (mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final positiveIndexes = widget.positiveIndexes.toList()..sort();
+    final quoteIndexes = widget.quoteIndexes.toList()..sort();
+    final isEmpty = positiveIndexes.isEmpty && quoteIndexes.isEmpty;
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('보관함')),
+      body: SafeArea(
+        child: isEmpty
+            ? const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(32),
+                  child: Text(
+                    '마음에 남는 긍정 글과 명언을\n하트로 보관해보세요.',
+                    key: ValueKey('positive-bookmarks-empty'),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 17, height: 1.5),
+                  ),
+                ),
+              )
+            : ListView(
+                key: const ValueKey('positive-bookmarks-list'),
+                padding: const EdgeInsets.all(20),
+                children: [
+                  if (positiveIndexes.isNotEmpty) ...[
+                    Text(
+                      '오늘의 긍정',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                    ),
+                    const SizedBox(height: 8),
+                    ...positiveIndexes.map((index) {
+                      final story = positiveStories[index];
+                      return _BookmarkCard(
+                        key: ValueKey('bookmarked-positive-$index'),
+                        title: story.title,
+                        body: story.body,
+                        footer: story.quote,
+                        onRemove: () => _remove(
+                          isQuote: false,
+                          index: index,
+                        ),
+                      );
+                    }),
+                  ],
+                  if (quoteIndexes.isNotEmpty) ...[
+                    if (positiveIndexes.isNotEmpty) const SizedBox(height: 20),
+                    Text(
+                      '오늘의 명언',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                    ),
+                    const SizedBox(height: 8),
+                    ...quoteIndexes.map((index) {
+                      final quote = dailyQuotes[index];
+                      return _BookmarkCard(
+                        key: ValueKey('bookmarked-quote-$index'),
+                        body: quote.text,
+                        footer: '— ${quote.attribution}',
+                        onRemove: () => _remove(
+                          isQuote: true,
+                          index: index,
+                        ),
+                      );
+                    }),
+                  ],
+                ],
+              ),
+      ),
+    );
+  }
+}
+
+class _BookmarkCard extends StatelessWidget {
+  final String? title;
+  final String body;
+  final String footer;
+  final VoidCallback onRemove;
+
+  const _BookmarkCard({
+    super.key,
+    this.title,
+    required this.body,
+    required this.footer,
+    required this.onRemove,
+  });
+
+  @override
+  Widget build(BuildContext context) => Card(
+        margin: const EdgeInsets.only(bottom: 12),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 18, 10, 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (title != null) ...[
+                Text(
+                  preventKoreanWordSplits(title!),
+                  style: const TextStyle(
+                    fontSize: 21,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 10),
+              ],
+              Text(
+                preventKoreanWordSplits(body),
+                style: const TextStyle(fontSize: 16, height: 1.6),
+              ),
+              if (footer.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Text(
+                  preventKoreanWordSplits(footer),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+              Align(
+                alignment: Alignment.centerRight,
+                child: IconButton(
+                  tooltip: '보관함에서 삭제',
+                  onPressed: onRemove,
+                  icon: const Icon(
+                    Icons.favorite,
+                    color: Color(0xFFE54866),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
 }
 
 class SettingsPage extends StatelessWidget {
