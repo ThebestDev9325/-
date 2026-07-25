@@ -25,13 +25,15 @@ class AppleAuthService {
       AppleAuthProvider(),
     );
     final authorizationCode = credential.additionalUserInfo?.authorizationCode;
-    if (authorizationCode == null || authorizationCode.isEmpty) {
-      throw StateError('Apple 계정 확인 코드를 받지 못했습니다.');
+    if (authorizationCode != null && authorizationCode.isNotEmpty) {
+      try {
+        await FirebaseAuth.instance.revokeTokenWithAuthorizationCode(
+          authorizationCode,
+        );
+      } catch (_) {
+        // Apple 토큰 폐기가 실패해도 Firebase 계정과 서비스 데이터는 삭제한다.
+      }
     }
-
-    await FirebaseAuth.instance.revokeTokenWithAuthorizationCode(
-      authorizationCode,
-    );
     final callable = FirebaseFunctions.instanceFor(
       region: 'asia-northeast3',
     ).httpsCallable('deleteAppleAccount');
