@@ -24,6 +24,8 @@ class AppleAuthService {
     final credential = await user.reauthenticateWithProvider(
       AppleAuthProvider(),
     );
+    // Ensure the callable receives an ID token carrying the fresh auth_time.
+    await user.getIdToken(true);
     final authorizationCode = credential.additionalUserInfo?.authorizationCode;
     if (authorizationCode != null && authorizationCode.isNotEmpty) {
       try {

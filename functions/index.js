@@ -88,6 +88,19 @@ async function deleteAccountData(uid) {
   await getAuth().deleteUser(uid);
 }
 
+const RECENT_AUTH_MAX_AGE_SECONDS = 5 * 60;
+
+function requireRecentAuthentication(request) {
+  const authTime = Number(request.auth && request.auth.token && request.auth.token.auth_time);
+  const now = Math.floor(Date.now() / 1000);
+  if (!Number.isFinite(authTime) || authTime > now + 30 || now - authTime > RECENT_AUTH_MAX_AGE_SECONDS) {
+    throw new HttpsError(
+        "failed-precondition",
+        "회원탈퇴를 진행하려면 Apple 계정을 다시 인증해주세요.",
+    );
+  }
+}
+
 exports.deleteKakaoAccount = onCall({region: "asia-northeast3"}, async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
@@ -107,6 +120,7 @@ exports.deleteAppleAccount = onCall({region: "asia-northeast3"}, async (request)
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
   }
+  requireRecentAuthentication(request);
   const uid = request.auth.uid;
   const user = await getAuth().getUser(uid);
   const hasAppleProvider = user.providerData.some(
