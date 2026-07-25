@@ -38,13 +38,13 @@ void main() {
     await tester.pumpWidget(const MaterialApp(
         home: Scaffold(bottomNavigationBar: BottomAdSlots())));
     expect(find.text('조용한 밤의 위로'), findsOneWidget);
-    expect(find.text('어슬렁 개발'), findsNothing);
+    expect(find.text('참을인'), findsNothing);
     expect(find.text('광고'), findsNWidgets(2));
     expect(find.byIcon(Icons.play_circle_fill), findsOneWidget);
     await tester.pump(const Duration(seconds: 10));
     await tester.pump(const Duration(milliseconds: 400));
     expect(find.text('조용한 밤의 위로'), findsNothing);
-    expect(find.text('어슬렁 개발'), findsOneWidget);
+    expect(find.text('참을인'), findsOneWidget);
     expect(find.text('광고'), findsNWidgets(2));
     expect(find.byIcon(Icons.play_circle_fill), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());

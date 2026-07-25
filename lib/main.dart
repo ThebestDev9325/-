@@ -694,15 +694,15 @@ class _BottomAdSlotsState extends State<BottomAdSlots> {
             Expanded(
               child: _AdSlot(
                 key: const ValueKey('bottom-ad-slot-2'),
-                label: _phase == 0 ? '광고 영역 우측 1: 비어 있음' : '광고 영역 우측 2: 어슬렁 개발',
-                title: _phase == 0 ? '' : '어슬렁 개발',
+                label: _phase == 0 ? '광고 영역 우측 1: 비어 있음' : '광고 영역 우측 2: 참을인',
+                title: _phase == 0 ? '' : '참을인',
                 color: Colors.white,
                 youtube: _phase == 1,
                 background: _phase == 1
                     ? const [Color(0xFF1D2733), Color(0xFF53606B)]
                     : null,
                 onTap: _phase == 1
-                    ? () => _open('https://www.youtube.com/@kokom2574')
+                    ? () => _open('https://www.youtube.com/@ThebestDev93')
                     : null,
               ),
             ),
