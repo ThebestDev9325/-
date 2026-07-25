@@ -3305,10 +3305,15 @@ class _PositivePageState extends State<PositivePage> {
                 ),
               ),
               const SizedBox(height: 18),
-              const Text(
-                '오늘 세 번째 긍정 글을 보셨네요.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              const FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  '오늘 세 번째 긍정 글을 보셨네요.',
+                  maxLines: 1,
+                  softWrap: false,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                ),
               ),
               const SizedBox(height: 20),
               const Text(
