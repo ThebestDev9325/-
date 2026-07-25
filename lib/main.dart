@@ -3598,6 +3598,7 @@ class _PositiveBookmarksPageState extends State<PositiveBookmarksPage> {
                       final story = positiveStories[index];
                       return _BookmarkCard(
                         key: ValueKey('bookmarked-positive-$index'),
+                        isQuote: false,
                         title: story.title,
                         body: story.body,
                         footer: story.quote,
@@ -3621,6 +3622,7 @@ class _PositiveBookmarksPageState extends State<PositiveBookmarksPage> {
                       final quote = dailyQuotes[index];
                       return _BookmarkCard(
                         key: ValueKey('bookmarked-quote-$index'),
+                        isQuote: true,
                         body: quote.text,
                         footer: '— ${quote.attribution}',
                         onRemove: () => _remove(
@@ -3638,6 +3640,7 @@ class _PositiveBookmarksPageState extends State<PositiveBookmarksPage> {
 }
 
 class _BookmarkCard extends StatelessWidget {
+  final bool isQuote;
   final String? title;
   final String body;
   final String footer;
@@ -3645,6 +3648,7 @@ class _BookmarkCard extends StatelessWidget {
 
   const _BookmarkCard({
     super.key,
+    required this.isQuote,
     this.title,
     required this.body,
     required this.footer,
@@ -3655,10 +3659,12 @@ class _BookmarkCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final cardColor =
-        isDark ? const Color(0xFF263329) : const Color(0xFFF2F7EE);
-    final borderColor =
-        isDark ? const Color(0xFF718273) : const Color(0xFFCBD8C7);
+    final cardColor = isQuote
+        ? (isDark ? const Color(0xFF27381F) : const Color(0xFFF0F7E5))
+        : (isDark ? const Color(0xFF403711) : const Color(0xFFFFF7D9));
+    final borderColor = isQuote
+        ? (isDark ? const Color(0xFF668151) : const Color(0xFFB7CE9A))
+        : (isDark ? const Color(0xFF827331) : const Color(0xFFE0C766));
     final textColor = theme.colorScheme.onSurface;
 
     return Card(
