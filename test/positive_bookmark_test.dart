@@ -120,4 +120,40 @@ void main() {
     );
     expect(filledHeart.icon, Icons.favorite);
   });
+
+  testWidgets('다크모드 보관함은 긍정은 노란색, 명언은 녹색 배경을 쓴다',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData.dark(),
+        home: PositiveBookmarksPage(
+          positiveIndexes: const {0},
+          quoteIndexes: const {0},
+          onToggle: ({required isQuote, required index}) async {},
+        ),
+      ),
+    );
+
+    final cards = tester.widgetList<Card>(find.byType(Card)).toList();
+    expect(cards, hasLength(2));
+    expect(cards[0].color, const Color(0xFF403711));
+    expect(cards[1].color, const Color(0xFF27381F));
+    expect(cards[0].elevation, 0);
+    expect(cards[1].elevation, 0);
+    final positiveShape = cards[0].shape! as RoundedRectangleBorder;
+    final quoteShape = cards[1].shape! as RoundedRectangleBorder;
+    expect(positiveShape.side.color, const Color(0xFF827331));
+    expect(quoteShape.side.color, const Color(0xFF668151));
+
+    final positiveHeading = tester.widget<Text>(
+      find.byKey(const ValueKey('bookmark-positive-heading')),
+    );
+    final quoteHeading = tester.widget<Text>(
+      find.byKey(const ValueKey('bookmark-quote-heading')),
+    );
+    expect(positiveHeading.style?.fontWeight, FontWeight.bold);
+    expect(positiveHeading.style?.color, const Color(0xFFF2CF55));
+    expect(quoteHeading.style?.fontWeight, FontWeight.bold);
+    expect(quoteHeading.style?.color, const Color(0xFF8FCB72));
+  });
 }

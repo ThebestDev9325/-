@@ -73,6 +73,7 @@ class _ChameulinAppState extends State<ChameulinApp>
       debugShowCheckedModeBanner: false,
       themeMode: darkMode ? ThemeMode.dark : ThemeMode.light,
       theme: ThemeData(
+        fontFamily: 'Pretendard',
         colorScheme: lightScheme,
         scaffoldBackgroundColor: const Color(0xFFF2F7E4),
         appBarTheme: const AppBarTheme(backgroundColor: Color(0xFFF2F7E4)),
@@ -82,6 +83,12 @@ class _ChameulinAppState extends State<ChameulinApp>
         useMaterial3: true,
       ),
       darkTheme: ThemeData.dark(useMaterial3: true).copyWith(
+        textTheme: ThemeData.dark()
+            .textTheme
+            .apply(fontFamily: 'Pretendard'),
+        primaryTextTheme: ThemeData.dark()
+            .primaryTextTheme
+            .apply(fontFamily: 'Pretendard'),
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF8FAA66),
           brightness: Brightness.dark,
@@ -694,15 +701,15 @@ class _BottomAdSlotsState extends State<BottomAdSlots> {
             Expanded(
               child: _AdSlot(
                 key: const ValueKey('bottom-ad-slot-2'),
-                label: _phase == 0 ? '광고 영역 우측 1: 비어 있음' : '광고 영역 우측 2: 어슬렁 개발',
-                title: _phase == 0 ? '' : '어슬렁 개발',
+                label: _phase == 0 ? '광고 영역 우측 1: 비어 있음' : '광고 영역 우측 2: 참을인',
+                title: _phase == 0 ? '' : '참을인',
                 color: Colors.white,
                 youtube: _phase == 1,
                 background: _phase == 1
                     ? const [Color(0xFF1D2733), Color(0xFF53606B)]
                     : null,
                 onTap: _phase == 1
-                    ? () => _open('https://www.youtube.com/@kokom2574')
+                    ? () => _open('https://www.youtube.com/@ThebestDev93')
                     : null,
               ),
             ),
@@ -1468,9 +1475,18 @@ class _WritingFlowState extends State<WritingFlow> {
         context: context,
         builder: (context) => AlertDialog(
           icon: const Text('🌿', style: TextStyle(fontSize: 38)),
-          title: const Text('오늘 세 번째 참을인을 쓰셨네요.'),
+          title: const FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              '오늘 세 번째 참을인을 쓰셨네요.',
+              maxLines: 1,
+              softWrap: false,
+            ),
+          ),
           content: const Text(
-            '오늘 주변이 조금 시끄러웠나 봅니다.\n그만큼 마음을 지키려고 애쓴 당신도 토닥여 주세요.',
+            '오늘 주변이 조금 시끄러웠나 봅니다.\n'
+            '그만큼 마음을 지키려고 애쓴\n'
+            '당신도 토닥여 주세요.',
             textAlign: TextAlign.center,
           ),
           actions: [
@@ -1546,37 +1562,59 @@ class _WritingFlowState extends State<WritingFlow> {
             ),
             const SizedBox(height: 8),
             Expanded(
-              child: GestureDetector(
-                onPanStart: (d) {
-                  unawaited(AppAudioService.instance.playBrush());
-                  setState(() => points.add(d.localPosition));
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final canvasSize = constraints.biggest;
+                  void addPoint(Offset position) {
+                    setState(() {
+                      if (isPointInsideCanvas(position, canvasSize)) {
+                        points.add(position);
+                      } else if (points.isNotEmpty && points.last != null) {
+                        points.add(null);
+                      }
+                    });
+                  }
+
+                  return ClipRRect(
+                    borderRadius: BorderRadius.circular(24),
+                    child: GestureDetector(
+                      onPanStart: (d) {
+                        unawaited(AppAudioService.instance.playBrush());
+                        addPoint(d.localPosition);
+                      },
+                      onPanUpdate: (d) => addPoint(d.localPosition),
+                      onPanEnd: (_) => setState(() => points.add(null)),
+                      child: CustomPaint(
+                        painter: DrawPainter(
+                          points,
+                          isDark:
+                              Theme.of(context).brightness == Brightness.dark,
+                        ),
+                        child: Container(
+                          key: const ValueKey('writing-canvas'),
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: Theme.of(context).brightness ==
+                                      Brightness.dark
+                                  ? Colors.white70
+                                  : Colors.black12,
+                            ),
+                            borderRadius: BorderRadius.circular(24),
+                          ),
+                          child: const Center(
+                            child: Text(
+                              '忍',
+                              style: TextStyle(
+                                fontSize: 150,
+                                color: Color(0x22617A3F),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
                 },
-                onPanUpdate: (d) => setState(() => points.add(d.localPosition)),
-                onPanEnd: (_) => setState(() => points.add(null)),
-                child: CustomPaint(
-                  painter: DrawPainter(
-                    points,
-                    isDark: Theme.of(context).brightness == Brightness.dark,
-                  ),
-                  child: Container(
-                    key: const ValueKey('writing-canvas'),
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: Theme.of(context).brightness == Brightness.dark
-                            ? Colors.white70
-                            : Colors.black12,
-                      ),
-                      borderRadius: BorderRadius.circular(24),
-                    ),
-                    child: const Center(
-                      child: Text(
-                        '忍',
-                        style:
-                            TextStyle(fontSize: 150, color: Color(0x22617A3F)),
-                      ),
-                    ),
-                  ),
-                ),
               ),
             ),
             Row(
@@ -1712,9 +1750,18 @@ class _WritingFlowState extends State<WritingFlow> {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        const Text(
-          '여러분께\n드리고 싶은 이야기는요.',
-          style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+        const SizedBox(
+          width: double.infinity,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              '제가 드리고 싶은 이야기는요',
+              key: ValueKey('story-page-heading'),
+              maxLines: 1,
+              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+            ),
+          ),
         ),
         const SizedBox(height: 14),
         Card(
@@ -1724,15 +1771,30 @@ class _WritingFlowState extends State<WritingFlow> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Chip(label: Text(story.theme)),
-                Text(
-                  story.title,
-                  style: const TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.bold,
+                SizedBox(
+                  width: double.infinity,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      preventKoreanWordSplits(story.title),
+                      key: const ValueKey('story-page-title'),
+                      maxLines: 1,
+                      style: const TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 12),
-                Text(story.body),
+                Text(
+                  preventKoreanWordSplits(
+                    formatStoryBodyForReadability(story.body),
+                  ),
+                  key: const ValueKey('story-page-body'),
+                  style: const TextStyle(fontSize: 17, height: 1.75),
+                ),
                 const SizedBox(height: 14),
                 Container(
                   padding: const EdgeInsets.all(14),
@@ -1741,7 +1803,7 @@ class _WritingFlowState extends State<WritingFlow> {
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: Text(
-                    story.quote,
+                    preventKoreanWordSplits(story.quote),
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),
@@ -2165,6 +2227,9 @@ class DrawPainter extends CustomPainter {
   DrawPainter(this.points, {required this.isDark});
   @override
   void paint(Canvas canvas, Size size) {
+    canvas.clipRRect(
+      RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(24)),
+    );
     for (var i = 0; i < points.length - 1; i++) {
       final start = points[i];
       final end = points[i + 1];
@@ -2189,6 +2254,12 @@ class DrawPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant DrawPainter oldDelegate) => true;
 }
+
+bool isPointInsideCanvas(Offset point, Size size) =>
+    point.dx >= 0 &&
+    point.dy >= 0 &&
+    point.dx <= size.width &&
+    point.dy <= size.height;
 
 StoryItem recommendStory(
   String text,
@@ -3297,10 +3368,15 @@ class _PositivePageState extends State<PositivePage> {
                 ),
               ),
               const SizedBox(height: 18),
-              const Text(
-                '오늘 세 번째 긍정 글을 보셨네요.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              const FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  '오늘 세 번째 긍정 글을 보셨네요.',
+                  maxLines: 1,
+                  softWrap: false,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                ),
               ),
               const SizedBox(height: 20),
               const Text(
@@ -3553,6 +3629,11 @@ class _PositiveBookmarksPageState extends State<PositiveBookmarksPage> {
     final positiveIndexes = widget.positiveIndexes.toList()..sort();
     final quoteIndexes = widget.quoteIndexes.toList()..sort();
     final isEmpty = positiveIndexes.isEmpty && quoteIndexes.isEmpty;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final positiveHeadingColor =
+        isDark ? const Color(0xFFF2CF55) : const Color(0xFF8A6500);
+    final quoteHeadingColor =
+        isDark ? const Color(0xFF8FCB72) : const Color(0xFF3F6F2A);
 
     return Scaffold(
       appBar: AppBar(title: const Text('보관함')),
@@ -3576,8 +3657,10 @@ class _PositiveBookmarksPageState extends State<PositiveBookmarksPage> {
                   if (positiveIndexes.isNotEmpty) ...[
                     Text(
                       '오늘의 긍정',
+                      key: const ValueKey('bookmark-positive-heading'),
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
                             fontWeight: FontWeight.bold,
+                            color: positiveHeadingColor,
                           ),
                     ),
                     const SizedBox(height: 8),
@@ -3585,6 +3668,7 @@ class _PositiveBookmarksPageState extends State<PositiveBookmarksPage> {
                       final story = positiveStories[index];
                       return _BookmarkCard(
                         key: ValueKey('bookmarked-positive-$index'),
+                        isQuote: false,
                         title: story.title,
                         body: story.body,
                         footer: story.quote,
@@ -3599,8 +3683,10 @@ class _PositiveBookmarksPageState extends State<PositiveBookmarksPage> {
                     if (positiveIndexes.isNotEmpty) const SizedBox(height: 20),
                     Text(
                       '오늘의 명언',
+                      key: const ValueKey('bookmark-quote-heading'),
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
                             fontWeight: FontWeight.bold,
+                            color: quoteHeadingColor,
                           ),
                     ),
                     const SizedBox(height: 8),
@@ -3608,6 +3694,7 @@ class _PositiveBookmarksPageState extends State<PositiveBookmarksPage> {
                       final quote = dailyQuotes[index];
                       return _BookmarkCard(
                         key: ValueKey('bookmarked-quote-$index'),
+                        isQuote: true,
                         body: quote.text,
                         footer: '— ${quote.attribution}',
                         onRemove: () => _remove(
@@ -3625,6 +3712,7 @@ class _PositiveBookmarksPageState extends State<PositiveBookmarksPage> {
 }
 
 class _BookmarkCard extends StatelessWidget {
+  final bool isQuote;
   final String? title;
   final String body;
   final String footer;
@@ -3632,6 +3720,7 @@ class _BookmarkCard extends StatelessWidget {
 
   const _BookmarkCard({
     super.key,
+    required this.isQuote,
     this.title,
     required this.body,
     required this.footer,
@@ -3639,52 +3728,71 @@ class _BookmarkCard extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) => Card(
-        margin: const EdgeInsets.only(bottom: 12),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(18, 18, 10, 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (title != null) ...[
-                Text(
-                  preventKoreanWordSplits(title!),
-                  style: const TextStyle(
-                    fontSize: 21,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 10),
-              ],
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final cardColor = isQuote
+        ? (isDark ? const Color(0xFF27381F) : const Color(0xFFF0F7E5))
+        : (isDark ? const Color(0xFF403711) : const Color(0xFFFFF7D9));
+    final borderColor = isQuote
+        ? (isDark ? const Color(0xFF668151) : const Color(0xFFB7CE9A))
+        : (isDark ? const Color(0xFF827331) : const Color(0xFFE0C766));
+    final textColor = theme.colorScheme.onSurface;
+
+    return Card(
+      color: cardColor,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: BorderSide(color: borderColor, width: 1.2),
+      ),
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 18, 10, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (title != null) ...[
               Text(
-                preventKoreanWordSplits(body),
-                style: const TextStyle(fontSize: 16, height: 1.6),
-              ),
-              if (footer.isNotEmpty) ...[
-                const SizedBox(height: 10),
-                Text(
-                  preventKoreanWordSplits(footer),
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
+                preventKoreanWordSplits(title!),
+                style: TextStyle(
+                  fontSize: 21,
+                  fontWeight: FontWeight.bold,
+                  color: textColor,
                 ),
-              ],
-              Align(
-                alignment: Alignment.centerRight,
-                child: IconButton(
-                  tooltip: '보관함에서 삭제',
-                  onPressed: onRemove,
-                  icon: const Icon(
-                    Icons.favorite,
-                    color: Color(0xFFE54866),
-                  ),
+              ),
+              const SizedBox(height: 10),
+            ],
+            Text(
+              preventKoreanWordSplits(body),
+              style: TextStyle(fontSize: 16, height: 1.6, color: textColor),
+            ),
+            if (footer.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Text(
+                preventKoreanWordSplits(footer),
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: textColor.withValues(alpha: 0.82),
                 ),
               ),
             ],
-          ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: IconButton(
+                tooltip: '보관함에서 삭제',
+                onPressed: onRemove,
+                icon: const Icon(
+                  Icons.favorite,
+                  color: Color(0xFFE54866),
+                ),
+              ),
+            ),
+          ],
         ),
-      );
+      ),
+    );
+  }
 }
 
 class SettingsPage extends StatelessWidget {

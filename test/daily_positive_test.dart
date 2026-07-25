@@ -122,6 +122,11 @@ void main() {
     }
 
     expect(find.text('오늘 세 번째 긍정 글을 보셨네요.'), findsOneWidget);
+    final limitTitle = tester.widget<Text>(
+      find.text('오늘 세 번째 긍정 글을 보셨네요.'),
+    );
+    expect(limitTitle.maxLines, 1);
+    expect(limitTitle.softWrap, isFalse);
     expect(find.byKey(const ValueKey('positive-limit-leaf')), findsOneWidget);
     expect(find.textContaining('긍정 에너지를 아껴두는 건 어떨까요?'), findsOneWidget);
     expect(
