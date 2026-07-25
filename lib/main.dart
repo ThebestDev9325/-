@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'apple_auth_service.dart';
 import 'audio_service.dart';
 import 'daily_positive_store.dart';
 import 'data/daily_quotes.dart';
@@ -332,7 +334,12 @@ class _AppShellState extends State<AppShell> {
       return;
     }
     try {
-      await KakaoAuthService.instance.deleteAccount();
+      final provider = await AppFirebaseService.instance.linkedProvider();
+      if (provider == 'apple') {
+        await AppleAuthService.instance.deleteAccount();
+      } else {
+        await KakaoAuthService.instance.deleteAccount();
+      }
       await _postsSubscription?.cancel();
       _postsSubscription = null;
       if (!mounted) return;
@@ -354,7 +361,7 @@ class _AppShellState extends State<AppShell> {
           SnackBar(
             content: Text(
               error.toString().contains('CANCELED')
-                  ? '카카오 계정 확인이 취소되어 회원탈퇴를 중단했습니다.'
+                  ? '계정 확인이 취소되어 회원탈퇴를 중단했습니다.'
                   : '회원탈퇴를 완료하지 못했습니다. 잠시 후 다시 시도해주세요.',
             ),
           ),
@@ -1891,6 +1898,25 @@ class AccountLinkPage extends StatefulWidget {
 class _AccountLinkPageState extends State<AccountLinkPage> {
   bool signingIn = false;
 
+  Future<void> _completeSignIn(Future<void> Function() signIn) async {
+    setState(() => signingIn = true);
+    try {
+      await signIn();
+      if (!mounted) return;
+      final nickname = await AppFirebaseService.instance.loadNickname();
+      if (!mounted) return;
+      if (nickname == null) {
+        final completed = await Navigator.of(context).push<bool>(
+          MaterialPageRoute(builder: (_) => const AccountNicknamePage()),
+        );
+        if (!mounted || completed != true) return;
+      }
+      Navigator.of(context).pop(true);
+    } finally {
+      if (mounted) setState(() => signingIn = false);
+    }
+  }
+
   Future<void> _signInWithKakao() async {
     if (signingIn) return;
     final confirmed = await showDialog<bool>(
@@ -1914,19 +1940,10 @@ class _AccountLinkPageState extends State<AccountLinkPage> {
       ),
     );
     if (confirmed != true || !mounted) return;
-    setState(() => signingIn = true);
     try {
-      await KakaoAuthService.instance.signIn();
-      if (!mounted) return;
-      final nickname = await AppFirebaseService.instance.loadNickname();
-      if (!mounted) return;
-      if (nickname == null) {
-        final completed = await Navigator.of(context).push<bool>(
-          MaterialPageRoute(builder: (_) => const AccountNicknamePage()),
-        );
-        if (!mounted || completed != true) return;
-      }
-      Navigator.of(context).pop(true);
+      await _completeSignIn(() async {
+        await KakaoAuthService.instance.signIn();
+      });
     } catch (error) {
       if (!mounted) return;
       final message = error.toString().contains('CANCELED')
@@ -1935,8 +1952,44 @@ class _AccountLinkPageState extends State<AccountLinkPage> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(message)));
-    } finally {
-      if (mounted) setState(() => signingIn = false);
+    }
+  }
+
+  Future<void> _signInWithApple() async {
+    if (signingIn) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Apple 계정을 연결할까요?'),
+        content: const Text(
+          '계정을 연결하면 기기를 변경해도 저장된 기록을 다시 확인할 수 있습니다. '
+          '참을인은 Apple 비밀번호를 저장하지 않습니다.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('나중에 하기'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Apple로 계속하기'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await _completeSignIn(() async {
+        await AppleAuthService.instance.signIn();
+      });
+    } catch (error) {
+      if (!mounted) return;
+      final message = error.toString().contains('canceled')
+          ? 'Apple 로그인이 취소되었습니다.'
+          : 'Apple 로그인에 실패했습니다. 잠시 후 다시 시도해주세요.';
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     }
   }
 
@@ -1965,7 +2018,7 @@ class _AccountLinkPageState extends State<AccountLinkPage> {
             ),
             const SizedBox(height: 12),
             const Text(
-              '카카오 계정으로 기록을 안전하게 보관하고, 내가 공유한 글을 관리할 수 있어요.',
+              '계정으로 기록을 안전하게 보관하고, 내가 공유한 글을 관리할 수 있어요.',
               textAlign: TextAlign.center,
               style: TextStyle(height: 1.6),
             ),
@@ -1977,6 +2030,16 @@ class _AccountLinkPageState extends State<AccountLinkPage> {
               foreground: Colors.black87,
               onPressed: signingIn ? null : _signInWithKakao,
             ),
+            if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) ...[
+              const SizedBox(height: 12),
+              _accountButton(
+                icon: '',
+                label: 'Apple로 계속하기',
+                color: Colors.black,
+                foreground: Colors.white,
+                onPressed: signingIn ? null : _signInWithApple,
+              ),
+            ],
           ],
         ),
       ),

@@ -68,17 +68,7 @@ exports.reportSharedPost = onCall({region: "asia-northeast3"}, async (request) =
   });
 });
 
-exports.deleteKakaoAccount = onCall({region: "asia-northeast3"}, async (request) => {
-  if (!request.auth) {
-    throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
-  }
-  const accessToken = request.data && request.data.accessToken;
-  const uid = request.auth.uid;
-  const verifiedUid = `kakao:${await kakaoUserId(accessToken)}`;
-  if (verifiedUid !== uid) {
-    throw new HttpsError("permission-denied", "현재 로그인한 카카오 계정과 일치하지 않습니다.");
-  }
-
+async function deleteAccountData(uid) {
   const userRef = db.collection("users").doc(uid);
   const userSnapshot = await userRef.get();
   const nickname = userSnapshot.data() && userSnapshot.data().nickname;
@@ -96,5 +86,36 @@ exports.deleteKakaoAccount = onCall({region: "asia-northeast3"}, async (request)
   await writer.close();
   await db.recursiveDelete(userRef);
   await getAuth().deleteUser(uid);
+}
+
+exports.deleteKakaoAccount = onCall({region: "asia-northeast3"}, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
+  }
+  const accessToken = request.data && request.data.accessToken;
+  const uid = request.auth.uid;
+  const verifiedUid = `kakao:${await kakaoUserId(accessToken)}`;
+  if (verifiedUid !== uid) {
+    throw new HttpsError("permission-denied", "현재 로그인한 카카오 계정과 일치하지 않습니다.");
+  }
+
+  await deleteAccountData(uid);
+  return {deleted: true};
+});
+
+exports.deleteAppleAccount = onCall({region: "asia-northeast3"}, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
+  }
+  const uid = request.auth.uid;
+  const user = await getAuth().getUser(uid);
+  const hasAppleProvider = user.providerData.some(
+      (provider) => provider.providerId === "apple.com",
+  );
+  if (!hasAppleProvider) {
+    throw new HttpsError("permission-denied", "Apple 계정 연결을 확인할 수 없습니다.");
+  }
+
+  await deleteAccountData(uid);
   return {deleted: true};
 });
