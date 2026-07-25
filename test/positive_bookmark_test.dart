@@ -120,4 +120,27 @@ void main() {
     );
     expect(filledHeart.icon, Icons.favorite);
   });
+
+  testWidgets('다크모드 보관함의 긍정과 명언 카드에 구분되는 배경이 있다',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData.dark(),
+        home: PositiveBookmarksPage(
+          positiveIndexes: const {0},
+          quoteIndexes: const {0},
+          onToggle: ({required isQuote, required index}) async {},
+        ),
+      ),
+    );
+
+    final cards = tester.widgetList<Card>(find.byType(Card)).toList();
+    expect(cards, hasLength(2));
+    for (final card in cards) {
+      expect(card.color, const Color(0xFF263329));
+      expect(card.elevation, 0);
+      final shape = card.shape! as RoundedRectangleBorder;
+      expect(shape.side.color, const Color(0xFF718273));
+    }
+  });
 }
