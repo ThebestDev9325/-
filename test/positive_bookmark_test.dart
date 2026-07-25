@@ -121,7 +121,7 @@ void main() {
     expect(filledHeart.icon, Icons.favorite);
   });
 
-  testWidgets('다크모드 보관함의 긍정과 명언 카드에 구분되는 배경이 있다',
+  testWidgets('다크모드 보관함은 긍정은 노란색, 명언은 녹색 배경을 쓴다',
       (tester) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -136,11 +136,13 @@ void main() {
 
     final cards = tester.widgetList<Card>(find.byType(Card)).toList();
     expect(cards, hasLength(2));
-    for (final card in cards) {
-      expect(card.color, const Color(0xFF263329));
-      expect(card.elevation, 0);
-      final shape = card.shape! as RoundedRectangleBorder;
-      expect(shape.side.color, const Color(0xFF718273));
-    }
+    expect(cards[0].color, const Color(0xFF403711));
+    expect(cards[1].color, const Color(0xFF27381F));
+    expect(cards[0].elevation, 0);
+    expect(cards[1].elevation, 0);
+    final positiveShape = cards[0].shape! as RoundedRectangleBorder;
+    final quoteShape = cards[1].shape! as RoundedRectangleBorder;
+    expect(positiveShape.side.color, const Color(0xFF827331));
+    expect(quoteShape.side.color, const Color(0xFF668151));
   });
 }
