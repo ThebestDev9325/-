@@ -71,6 +71,7 @@ class _ChameulinAppState extends State<ChameulinApp>
       debugShowCheckedModeBanner: false,
       themeMode: darkMode ? ThemeMode.dark : ThemeMode.light,
       theme: ThemeData(
+        fontFamily: 'Pretendard',
         colorScheme: lightScheme,
         scaffoldBackgroundColor: const Color(0xFFF2F7E4),
         appBarTheme: const AppBarTheme(backgroundColor: Color(0xFFF2F7E4)),
@@ -80,6 +81,12 @@ class _ChameulinAppState extends State<ChameulinApp>
         useMaterial3: true,
       ),
       darkTheme: ThemeData.dark(useMaterial3: true).copyWith(
+        textTheme: ThemeData.dark()
+            .textTheme
+            .apply(fontFamily: 'Pretendard'),
+        primaryTextTheme: ThemeData.dark()
+            .primaryTextTheme
+            .apply(fontFamily: 'Pretendard'),
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF8FAA66),
           brightness: Brightness.dark,
@@ -1706,7 +1713,7 @@ class _WritingFlowState extends State<WritingFlow> {
       padding: const EdgeInsets.all(20),
       children: [
         const Text(
-          '여러분께\n드리고 싶은 이야기는요.',
+          '제가\n드리고 싶은 이야기는요.',
           style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 14),
