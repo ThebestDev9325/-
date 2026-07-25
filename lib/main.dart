@@ -1546,37 +1546,59 @@ class _WritingFlowState extends State<WritingFlow> {
             ),
             const SizedBox(height: 8),
             Expanded(
-              child: GestureDetector(
-                onPanStart: (d) {
-                  unawaited(AppAudioService.instance.playBrush());
-                  setState(() => points.add(d.localPosition));
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final canvasSize = constraints.biggest;
+                  void addPoint(Offset position) {
+                    setState(() {
+                      if (isPointInsideCanvas(position, canvasSize)) {
+                        points.add(position);
+                      } else if (points.isNotEmpty && points.last != null) {
+                        points.add(null);
+                      }
+                    });
+                  }
+
+                  return ClipRRect(
+                    borderRadius: BorderRadius.circular(24),
+                    child: GestureDetector(
+                      onPanStart: (d) {
+                        unawaited(AppAudioService.instance.playBrush());
+                        addPoint(d.localPosition);
+                      },
+                      onPanUpdate: (d) => addPoint(d.localPosition),
+                      onPanEnd: (_) => setState(() => points.add(null)),
+                      child: CustomPaint(
+                        painter: DrawPainter(
+                          points,
+                          isDark:
+                              Theme.of(context).brightness == Brightness.dark,
+                        ),
+                        child: Container(
+                          key: const ValueKey('writing-canvas'),
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: Theme.of(context).brightness ==
+                                      Brightness.dark
+                                  ? Colors.white70
+                                  : Colors.black12,
+                            ),
+                            borderRadius: BorderRadius.circular(24),
+                          ),
+                          child: const Center(
+                            child: Text(
+                              '忍',
+                              style: TextStyle(
+                                fontSize: 150,
+                                color: Color(0x22617A3F),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
                 },
-                onPanUpdate: (d) => setState(() => points.add(d.localPosition)),
-                onPanEnd: (_) => setState(() => points.add(null)),
-                child: CustomPaint(
-                  painter: DrawPainter(
-                    points,
-                    isDark: Theme.of(context).brightness == Brightness.dark,
-                  ),
-                  child: Container(
-                    key: const ValueKey('writing-canvas'),
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: Theme.of(context).brightness == Brightness.dark
-                            ? Colors.white70
-                            : Colors.black12,
-                      ),
-                      borderRadius: BorderRadius.circular(24),
-                    ),
-                    child: const Center(
-                      child: Text(
-                        '忍',
-                        style:
-                            TextStyle(fontSize: 150, color: Color(0x22617A3F)),
-                      ),
-                    ),
-                  ),
-                ),
               ),
             ),
             Row(
@@ -2109,6 +2131,9 @@ class DrawPainter extends CustomPainter {
   DrawPainter(this.points, {required this.isDark});
   @override
   void paint(Canvas canvas, Size size) {
+    canvas.clipRRect(
+      RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(24)),
+    );
     for (var i = 0; i < points.length - 1; i++) {
       final start = points[i];
       final end = points[i + 1];
@@ -2133,6 +2158,12 @@ class DrawPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant DrawPainter oldDelegate) => true;
 }
+
+bool isPointInsideCanvas(Offset point, Size size) =>
+    point.dx >= 0 &&
+    point.dy >= 0 &&
+    point.dx <= size.width &&
+    point.dy <= size.height;
 
 StoryItem recommendStory(
   String text,

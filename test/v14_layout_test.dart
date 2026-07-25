@@ -37,10 +37,26 @@ void main() {
     );
     final canvas = tester.getSize(find.byKey(const ValueKey('writing-canvas')));
     expect(canvas.height, greaterThan(240));
+    expect(
+      find.ancestor(
+        of: find.byKey(const ValueKey('writing-canvas')),
+        matching: find.byType(ClipRRect),
+      ),
+      findsOneWidget,
+    );
     final canvasBottom =
         tester.getBottomLeft(find.byKey(const ValueKey('writing-canvas'))).dy;
     final buttonTop = tester.getTopLeft(find.text('지우기')).dy;
     expect(buttonTop - canvasBottom, lessThan(30));
+  });
+
+  test('그리기 좌표는 캔버스 안에서만 허용된다', () {
+    const size = Size(300, 400);
+
+    expect(isPointInsideCanvas(const Offset(0, 0), size), isTrue);
+    expect(isPointInsideCanvas(const Offset(300, 400), size), isTrue);
+    expect(isPointInsideCanvas(const Offset(-1, 200), size), isFalse);
+    expect(isPointInsideCanvas(const Offset(150, 401), size), isFalse);
   });
 
   testWidgets('감정 선택 카드는 2열 2행으로 배치된다', (tester) async {
