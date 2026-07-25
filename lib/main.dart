@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
@@ -298,12 +297,6 @@ class _AppShellState extends State<AppShell> {
         onBackgroundVolume: widget.onBackgroundVolume,
         onDeleteData: _deleteData,
         onDeleteAccount: _deleteAccount,
-        onLogout: _logout,
-        onLinkAccount: () => Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => AccountLinkPage(onTabSelected: _selectTabFromRoute),
-          ),
-        ),
       ),
     ];
 
@@ -379,45 +372,6 @@ class _AppShellState extends State<AppShell> {
                   : '회원탈퇴를 완료하지 못했습니다. 잠시 후 다시 시도해주세요.',
             ),
           ),
-        );
-      }
-    }
-  }
-
-  Future<void> _logout() async {
-    if (!AppFirebaseService.instance.hasLinkedAccount) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('연동된 계정이 없습니다.')));
-      return;
-    }
-    try {
-      final provider = await AppFirebaseService.instance.linkedProvider();
-      if (provider == 'kakao') {
-        try {
-          await UserApi.instance.logout();
-        } catch (_) {
-          // Firebase 로그아웃은 계속 진행한다.
-        }
-      }
-      await FirebaseAuth.instance.signOut();
-      await _postsSubscription?.cancel();
-      _postsSubscription = null;
-      if (!mounted) return;
-      setState(() {
-        nickname = null;
-        linkedAccountLabel = null;
-        currentUserId = 'connecting';
-        records.clear();
-        sharedPosts.clear();
-      });
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('로그아웃되었습니다.')));
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('로그아웃하지 못했습니다. 잠시 후 다시 시도해주세요.')),
         );
       }
     }
@@ -3841,10 +3795,6 @@ class _BookmarkCard extends StatelessWidget {
   }
 }
 
-Future<void> _noopSettingsAction() async {}
-
-void _noopSettingsLink() {}
-
 class SettingsPage extends StatelessWidget {
   final String? nickname;
   final String? linkedAccountLabel;
@@ -3852,8 +3802,7 @@ class SettingsPage extends StatelessWidget {
   final double effectVolume, backgroundVolume;
   final ValueChanged<bool> onDarkMode, onEffectSound, onBackgroundMusic;
   final ValueChanged<double> onEffectVolume, onBackgroundVolume;
-  final Future<void> Function() onDeleteData, onDeleteAccount, onLogout;
-  final VoidCallback onLinkAccount;
+  final Future<void> Function() onDeleteData, onDeleteAccount;
   const SettingsPage({
     super.key,
     required this.nickname,
@@ -3870,8 +3819,6 @@ class SettingsPage extends StatelessWidget {
     required this.onBackgroundVolume,
     required this.onDeleteData,
     required this.onDeleteAccount,
-    this.onLogout = _noopSettingsAction,
-    this.onLinkAccount = _noopSettingsLink,
   });
   @override
   Widget build(BuildContext context) => SafeArea(
@@ -3892,15 +3839,6 @@ class SettingsPage extends StatelessWidget {
                   ListTile(
                     title: const Text('연결 계정'),
                     subtitle: Text(linkedAccountLabel ?? '아직 연결된 계정 없음'),
-                    trailing: linkedAccountLabel == null
-                        ? TextButton(
-                            onPressed: onLinkAccount,
-                            child: const Text('연결'),
-                          )
-                        : TextButton(
-                            onPressed: onLogout,
-                            child: const Text('로그아웃'),
-                          ),
                   ),
                 ],
               ),
