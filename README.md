@@ -1,6 +1,6 @@
 # 참을인 Flutter
 
-화난 마음을 기록하고 이야기를 추천받는 Flutter Android 앱입니다. Firebase 익명 인증과 Cloud Firestore를 사용합니다.
+화난 마음을 기록하고 이야기를 추천받는 Flutter Android/iOS 앱입니다. Firebase 익명 인증과 Cloud Firestore를 사용합니다.
 
 ## 포함 기능
 
@@ -38,9 +38,13 @@ flutter run
 ```bash
 flutter build apk --release
 flutter build appbundle --release
+flutter build ios --simulator
+flutter build ipa
 ```
 
-Firebase 프로젝트는 `thebest-dev`, Android 패키지명은 `com.chameulin.app`입니다.
+Firebase 프로젝트는 `thebest-dev`, Android 패키지명과 iOS Bundle ID는
+`com.chameulin.app`입니다. iOS 아카이브에는 Apple Developer Team
+`F9GUZW4R7H`의 서명과 Firebase iOS 앱 등록이 필요합니다.
 
 ## 참고
 

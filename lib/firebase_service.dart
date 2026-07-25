@@ -30,11 +30,24 @@ class AppFirebaseService {
   bool get hasLinkedAccount =>
       _auth.currentUser != null && !_auth.currentUser!.isAnonymous;
 
-  Future<String?> linkedAccountLabel() async {
+  Future<String?> linkedProvider() async {
     final user = _auth.currentUser;
     if (user == null || user.isAnonymous) return null;
     final token = await user.getIdTokenResult();
-    return token.claims?['provider'] == 'kakao' ? '카카오 계정 연결됨' : '계정 연결됨';
+    if (token.claims?['provider'] == 'kakao') return 'kakao';
+    if (user.providerData
+        .any((provider) => provider.providerId == 'apple.com')) {
+      return 'apple';
+    }
+    return null;
+  }
+
+  Future<String?> linkedAccountLabel() async {
+    return switch (await linkedProvider()) {
+      'kakao' => '카카오 계정 연결됨',
+      'apple' => 'Apple 계정 연결됨',
+      _ => hasLinkedAccount ? '계정 연결됨' : null,
+    };
   }
 
   Future<String> signIn() async {
@@ -213,11 +226,8 @@ class AppFirebaseService {
   Future<void> deleteMyData() async {
     final user = _auth.currentUser;
     if (user == null) return;
-    final records = await _db
-        .collection('users')
-        .doc(user.uid)
-        .collection('records')
-        .get();
+    final records =
+        await _db.collection('users').doc(user.uid).collection('records').get();
     final shared = await _db
         .collection('sharedPosts')
         .where('ownerId', isEqualTo: user.uid)
