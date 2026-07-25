@@ -3652,52 +3652,69 @@ class _BookmarkCard extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) => Card(
-        margin: const EdgeInsets.only(bottom: 12),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(18, 18, 10, 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (title != null) ...[
-                Text(
-                  preventKoreanWordSplits(title!),
-                  style: const TextStyle(
-                    fontSize: 21,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 10),
-              ],
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final cardColor =
+        isDark ? const Color(0xFF263329) : const Color(0xFFF2F7EE);
+    final borderColor =
+        isDark ? const Color(0xFF718273) : const Color(0xFFCBD8C7);
+    final textColor = theme.colorScheme.onSurface;
+
+    return Card(
+      color: cardColor,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: BorderSide(color: borderColor, width: 1.2),
+      ),
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 18, 10, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (title != null) ...[
               Text(
-                preventKoreanWordSplits(body),
-                style: const TextStyle(fontSize: 16, height: 1.6),
-              ),
-              if (footer.isNotEmpty) ...[
-                const SizedBox(height: 10),
-                Text(
-                  preventKoreanWordSplits(footer),
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
+                preventKoreanWordSplits(title!),
+                style: TextStyle(
+                  fontSize: 21,
+                  fontWeight: FontWeight.bold,
+                  color: textColor,
                 ),
-              ],
-              Align(
-                alignment: Alignment.centerRight,
-                child: IconButton(
-                  tooltip: '보관함에서 삭제',
-                  onPressed: onRemove,
-                  icon: const Icon(
-                    Icons.favorite,
-                    color: Color(0xFFE54866),
-                  ),
+              ),
+              const SizedBox(height: 10),
+            ],
+            Text(
+              preventKoreanWordSplits(body),
+              style: TextStyle(fontSize: 16, height: 1.6, color: textColor),
+            ),
+            if (footer.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Text(
+                preventKoreanWordSplits(footer),
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: textColor.withValues(alpha: 0.82),
                 ),
               ),
             ],
-          ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: IconButton(
+                tooltip: '보관함에서 삭제',
+                onPressed: onRemove,
+                icon: const Icon(
+                  Icons.favorite,
+                  color: Color(0xFFE54866),
+                ),
+              ),
+            ),
+          ],
         ),
-      );
+      ),
+    );
+  }
 }
 
 class SettingsPage extends StatelessWidget {
