@@ -23,7 +23,19 @@ void main() {
     await tester.tap(find.text('다 적었습니다'));
     await tester.pumpAndSettle();
     expect(find.text('오늘 세 번째 참을인을 쓰셨네요.'), findsOneWidget);
-    expect(find.textContaining('오늘 주변이 조금 시끄러웠나 봅니다'), findsOneWidget);
+    final title = tester.widget<Text>(
+      find.text('오늘 세 번째 참을인을 쓰셨네요.'),
+    );
+    expect(title.maxLines, 1);
+    expect(title.softWrap, isFalse);
+    expect(
+      find.text(
+        '오늘 주변이 조금 시끄러웠나 봅니다.\n'
+        '그만큼 마음을 지키려고 애쓴\n'
+        '당신도 토닥여 주세요.',
+      ),
+      findsOneWidget,
+    );
 
     await tester.tap(find.text('마음 돌보기'));
     await tester.pumpAndSettle();

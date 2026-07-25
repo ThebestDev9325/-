@@ -1468,9 +1468,18 @@ class _WritingFlowState extends State<WritingFlow> {
         context: context,
         builder: (context) => AlertDialog(
           icon: const Text('🌿', style: TextStyle(fontSize: 38)),
-          title: const Text('오늘 세 번째 참을인을 쓰셨네요.'),
+          title: const FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              '오늘 세 번째 참을인을 쓰셨네요.',
+              maxLines: 1,
+              softWrap: false,
+            ),
+          ),
           content: const Text(
-            '오늘 주변이 조금 시끄러웠나 봅니다.\n그만큼 마음을 지키려고 애쓴 당신도 토닥여 주세요.',
+            '오늘 주변이 조금 시끄러웠나 봅니다.\n'
+            '그만큼 마음을 지키려고 애쓴\n'
+            '당신도 토닥여 주세요.',
             textAlign: TextAlign.center,
           ),
           actions: [
