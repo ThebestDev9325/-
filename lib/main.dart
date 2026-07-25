@@ -1734,9 +1734,18 @@ class _WritingFlowState extends State<WritingFlow> {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        const Text(
-          '제가\n드리고 싶은 이야기는요.',
-          style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+        const SizedBox(
+          width: double.infinity,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              '제가 드리고 싶은 이야기는요',
+              key: ValueKey('story-page-heading'),
+              maxLines: 1,
+              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+            ),
+          ),
         ),
         const SizedBox(height: 14),
         Card(
@@ -1746,15 +1755,30 @@ class _WritingFlowState extends State<WritingFlow> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Chip(label: Text(story.theme)),
-                Text(
-                  story.title,
-                  style: const TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.bold,
+                SizedBox(
+                  width: double.infinity,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      preventKoreanWordSplits(story.title),
+                      key: const ValueKey('story-page-title'),
+                      maxLines: 1,
+                      style: const TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 12),
-                Text(story.body),
+                Text(
+                  preventKoreanWordSplits(
+                    formatStoryBodyForReadability(story.body),
+                  ),
+                  key: const ValueKey('story-page-body'),
+                  style: const TextStyle(fontSize: 17, height: 1.75),
+                ),
                 const SizedBox(height: 14),
                 Container(
                   padding: const EdgeInsets.all(14),
@@ -1763,7 +1787,7 @@ class _WritingFlowState extends State<WritingFlow> {
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: Text(
-                    story.quote,
+                    preventKoreanWordSplits(story.quote),
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),

@@ -8,3 +8,14 @@ String preventKoreanWordSplits(String text) {
     (match) => '${match.group(1)}\u2060',
   );
 }
+
+/// Starts each sentence or comma-separated clause on a new visual line.
+String formatStoryBodyForReadability(String text) {
+  return text
+      .trim()
+      .replaceAllMapped(
+        RegExp(r'([.!?])\s+'),
+        (match) => '${match.group(1)}\n',
+      )
+      .replaceAll(RegExp(r',\s+'), ',\n');
+}
