@@ -3566,6 +3566,11 @@ class _PositiveBookmarksPageState extends State<PositiveBookmarksPage> {
     final positiveIndexes = widget.positiveIndexes.toList()..sort();
     final quoteIndexes = widget.quoteIndexes.toList()..sort();
     final isEmpty = positiveIndexes.isEmpty && quoteIndexes.isEmpty;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final positiveHeadingColor =
+        isDark ? const Color(0xFFF2CF55) : const Color(0xFF8A6500);
+    final quoteHeadingColor =
+        isDark ? const Color(0xFF8FCB72) : const Color(0xFF3F6F2A);
 
     return Scaffold(
       appBar: AppBar(title: const Text('보관함')),
@@ -3589,8 +3594,10 @@ class _PositiveBookmarksPageState extends State<PositiveBookmarksPage> {
                   if (positiveIndexes.isNotEmpty) ...[
                     Text(
                       '오늘의 긍정',
+                      key: const ValueKey('bookmark-positive-heading'),
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
                             fontWeight: FontWeight.bold,
+                            color: positiveHeadingColor,
                           ),
                     ),
                     const SizedBox(height: 8),
@@ -3613,8 +3620,10 @@ class _PositiveBookmarksPageState extends State<PositiveBookmarksPage> {
                     if (positiveIndexes.isNotEmpty) const SizedBox(height: 20),
                     Text(
                       '오늘의 명언',
+                      key: const ValueKey('bookmark-quote-heading'),
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
                             fontWeight: FontWeight.bold,
+                            color: quoteHeadingColor,
                           ),
                     ),
                     const SizedBox(height: 8),
