@@ -144,5 +144,16 @@ void main() {
     final quoteShape = cards[1].shape! as RoundedRectangleBorder;
     expect(positiveShape.side.color, const Color(0xFF827331));
     expect(quoteShape.side.color, const Color(0xFF668151));
+
+    final positiveHeading = tester.widget<Text>(
+      find.byKey(const ValueKey('bookmark-positive-heading')),
+    );
+    final quoteHeading = tester.widget<Text>(
+      find.byKey(const ValueKey('bookmark-quote-heading')),
+    );
+    expect(positiveHeading.style?.fontWeight, FontWeight.bold);
+    expect(positiveHeading.style?.color, const Color(0xFFF2CF55));
+    expect(quoteHeading.style?.fontWeight, FontWeight.bold);
+    expect(quoteHeading.style?.color, const Color(0xFF8FCB72));
   });
 }
