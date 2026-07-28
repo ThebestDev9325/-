@@ -433,7 +433,7 @@ test(
 );
 
 test(
-    "callable queues a private report and deduplicates the same reporter",
+    "callable records a private report and deduplicates the same reporter",
     {skip: !hasEmulators},
     async () => {
       const postId = `callable-dedupe-${Date.now()}`;
@@ -616,7 +616,7 @@ test(
 );
 
 test(
-    "legacy migration preserves an existing report and queues missing reports",
+    "legacy migration preserves an existing report and records missing reports",
     {skip: !hasEmulators},
     async () => {
       const postId = `migration-race-${Date.now()}`;

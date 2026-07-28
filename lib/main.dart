@@ -700,7 +700,7 @@ class _AppShellState extends State<AppShell> {
           );
         });
       } catch (_) {
-        // The persisted report remains queued for the next app start.
+        // The persisted report remains available for retry on the next app start.
       }
     }
   }

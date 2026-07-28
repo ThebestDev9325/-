@@ -22,10 +22,8 @@
 6. App Store 재심사 전에 `firebase deploy --only firestore:rules`
 7. 새 iOS/Android 앱을 배포하고 서버 전용 게시 경로 사용 여부 확인
 8. 구버전 앱의 직접 공유가 차단되는 기간에는 공유 실패 문의를 모니터링
-9. Cloud Logging의 `content_report_received`, `deadline_approaching`,
-   `deadline_overdue`, `moderation_action_required`,
-   `moderation_action_overdue` 로그를 개발자 이메일 알림 채널에 연결
-10. 신고 접수 시 `contentReports`를 확인하고 24시간 이내 다음 명령으로 처리
+9. `content_report_received` 로그와 비공개 `contentReports` 신고함을 매일 확인
+10. 신고 접수 후 24시간 이내 다음 명령으로 처리
 
 ```bash
 node functions/scripts/resolve_content_report.js REPORT_ID remove-and-suspend
@@ -55,7 +53,7 @@ PATH="/opt/homebrew/opt/openjdk@21/bin:$PATH" \
 ```
 
 검증 결과: Flutter 테스트 68개, Functions/Firestore/Auth Emulator 테스트
-39개, iOS Simulator 빌드, iPhone 17 Pro Max 및 iPad Air 11-inch
+37개, iOS Simulator 빌드, iPhone 17 Pro Max 및 iPad Air 11-inch
 시뮬레이터 렌더링을 통과했다.
 
 ## 심사 노트
@@ -68,7 +66,7 @@ We implemented all required safeguards for anonymous user-generated content.
 3. Users can immediately hide a post from the same menu.
 4. Users can block an anonymous author from the same menu. All posts from that author are immediately removed from the feed.
 5. Users can delete their own posts from the post menu or the My Shares tab.
-6. Reports are added to a private moderation queue and reviewed within 24 hours. Violating content is removed and the offending account is suspended.
+6. Reports are recorded in a private moderation inbox and reviewed within 24 hours. Violating content is removed and the offending account is suspended.
 7. In-app contact information is available under Settings > Customer Support and Report.
 8. The public support page is https://thebestdev9325.github.io/-/
 

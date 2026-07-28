@@ -1,6 +1,4 @@
 const {onCall, HttpsError} = require("firebase-functions/v2/https");
-const {onDocumentCreated} = require("firebase-functions/v2/firestore");
-const {onSchedule} = require("firebase-functions/v2/scheduler");
 const logger = require("firebase-functions/logger");
 const {initializeApp} = require("firebase-admin/app");
 const {getAuth} = require("firebase-admin/auth");
@@ -8,10 +6,6 @@ const {getFirestore, Timestamp} = require("firebase-admin/firestore");
 const {createHash} = require("node:crypto");
 const {deleteAccountData} = require("./account_deletion");
 const {isValidSharedPost} = require("./content_moderation");
-const {
-  operationalReportStatuses,
-  reportDeadlineEvent,
-} = require("./report_monitoring");
 
 initializeApp();
 const db = getFirestore();
@@ -61,13 +55,6 @@ async function requireConnectedAccount(request) {
         "공유하려면 카카오 또는 Apple 계정 연결이 필요합니다.",
     );
   }
-}
-
-async function resetPrivateRecordSharing(transaction, ownerId, postId) {
-  const recordRef = db.collection("users").doc(ownerId)
-      .collection("records").doc(postId);
-  const record = await transaction.get(recordRef);
-  if (record.exists) transaction.update(recordRef, {shared: false});
 }
 
 async function kakaoUserId(accessToken) {
@@ -185,7 +172,7 @@ exports.reportSharedPost = onCall({region: "asia-northeast3"}, async (request) =
         reportCount: 5,
         removed: true,
         alreadyReported: false,
-        queued: false,
+        recorded: false,
       };
     }
     const data = snapshot.data();
@@ -198,7 +185,7 @@ exports.reportSharedPost = onCall({region: "asia-northeast3"}, async (request) =
         reportCount: Number(data.reportCount) || 0,
         removed: false,
         alreadyReported: true,
-        queued: false,
+        recorded: false,
       };
     }
     const legacyReporters = Array.isArray(data.reportedBy) ?
@@ -226,7 +213,7 @@ exports.reportSharedPost = onCall({region: "asia-northeast3"}, async (request) =
         reportCount: Number(data.reportCount) || legacyReporters.length,
         removed: false,
         alreadyReported: true,
-        queued: true,
+        recorded: true,
       };
     }
     const rateLimit = await transaction.get(rateLimitRef);
@@ -272,10 +259,10 @@ exports.reportSharedPost = onCall({region: "asia-northeast3"}, async (request) =
       reportCount,
       removed: false,
       alreadyReported: false,
-      queued: true,
+      recorded: true,
     };
   });
-  if (result.queued) {
+  if (result.recorded) {
     logger.warn("content_report_received", {
       postId,
       reporterHash: reporterHash(uid),
@@ -288,64 +275,6 @@ exports.reportSharedPost = onCall({region: "asia-northeast3"}, async (request) =
     alreadyReported: result.alreadyReported,
   };
 });
-
-exports.moderateCreatedSharedPost = onDocumentCreated(
-    {document: "sharedPosts/{postId}", region: "asia-northeast3"},
-    async (event) => {
-      const snapshot = event.data;
-      if (!snapshot || isValidSharedPost(snapshot.data())) return;
-      await db.runTransaction(async (transaction) => {
-        const current = await transaction.get(snapshot.ref);
-        if (!current.exists) return;
-        const currentData = current.data();
-        if (isValidSharedPost(currentData)) return;
-        const ownerId = currentData.ownerId;
-        if (typeof ownerId === "string") {
-          await resetPrivateRecordSharing(
-              transaction,
-              ownerId,
-              event.params.postId,
-          );
-        }
-        transaction.delete(snapshot.ref);
-      });
-      logger.error("invalid_shared_post_removed", {
-        postId: event.params.postId,
-      });
-    },
-);
-
-exports.monitorPendingContentReports = onSchedule(
-    {schedule: "every 60 minutes", region: "asia-northeast3"},
-    async () => {
-      const now = Timestamp.now();
-      const approaching = Timestamp.fromMillis(
-          now.toMillis() + 4 * 60 * 60 * 1000,
-      );
-      for (const status of operationalReportStatuses) {
-        const reports = await db.collection("contentReports")
-            .where("status", "==", status)
-            .where("deadlineAt", "<=", approaching)
-            .get();
-        for (const report of reports.docs) {
-          const data = report.data();
-          if (!(data.deadlineAt instanceof Timestamp)) continue;
-          const eventName = reportDeadlineEvent(
-              status,
-              data.deadlineAt.toMillis(),
-              now.toMillis(),
-          );
-          if (!eventName) continue;
-          logger.error(eventName, {
-            reportId: report.id,
-            postId: data.postId,
-            status,
-            deadlineAt: data.deadlineAt.toMillis(),
-          });
-        }
-      }
-    },
-);
 
 exports.deleteKakaoAccount = onCall({region: "asia-northeast3"}, async (request) => {
   if (!request.auth) {
