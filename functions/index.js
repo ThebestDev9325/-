@@ -113,9 +113,22 @@ exports.publishSharedRecord = onCall(
           .collection("records").doc(recordId);
       const postRef = db.collection("sharedPosts").doc(recordId);
       await db.runTransaction(async (transaction) => {
-        const record = await transaction.get(recordRef);
+        const [record, existingPost] = await transaction.getAll(
+            recordRef,
+            postRef,
+        );
         if (!record.exists) {
           throw new HttpsError("not-found", "공유할 마음 기록이 없습니다.");
+        }
+        if (existingPost.exists) {
+          if (existingPost.data().ownerId !== uid) {
+            throw new HttpsError(
+                "already-exists",
+                "같은 식별자의 공유 글이 이미 존재합니다.",
+            );
+          }
+          transaction.update(recordRef, {shared: true});
+          return;
         }
         const data = record.data();
         const post = {

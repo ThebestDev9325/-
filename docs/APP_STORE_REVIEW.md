@@ -55,7 +55,7 @@ PATH="/opt/homebrew/opt/openjdk@21/bin:$PATH" \
 ```
 
 검증 결과: Flutter 테스트 68개, Functions/Firestore/Auth Emulator 테스트
-37개, iOS Simulator 빌드, iPhone 17 Pro Max 및 iPad Air 11-inch
+39개, iOS Simulator 빌드, iPhone 17 Pro Max 및 iPad Air 11-inch
 시뮬레이터 렌더링을 통과했다.
 
 ## 심사 노트

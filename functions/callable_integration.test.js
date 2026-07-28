@@ -73,6 +73,32 @@ async function createAnonymousReporter(name) {
   };
 }
 
+async function createConnectedPublisher(name) {
+  const userId = `kakao:${name}-${Date.now()}`;
+  const authentication = getAdminAuth();
+  await authentication.createUser({uid: userId});
+  const app = initializeApp(
+      {projectId, apiKey: "demo-api-key"},
+      `publisher-${name}-${Date.now()}`,
+  );
+  const auth = getAuth(app);
+  connectAuthEmulator(auth, "http://127.0.0.1:9099", {
+    disableWarnings: true,
+  });
+  const customToken = await authentication.createCustomToken(
+      userId,
+      {provider: "kakao"},
+  );
+  await signInWithCustomToken(auth, customToken);
+  const functions = getFunctions(app, "asia-northeast3");
+  connectFunctionsEmulator(functions, "127.0.0.1", 5001);
+  return {
+    app,
+    userId,
+    publish: httpsCallable(functions, "publishSharedRecord"),
+  };
+}
+
 test.before(async () => {
   if (!hasEmulators) return;
   database = getAdminFirestore(initializeAdminApp({projectId}));
@@ -161,6 +187,78 @@ test(
       } finally {
         await deleteApp(reporter.app);
       }
+    },
+);
+
+test(
+    "a connected user cannot overwrite another owner's post",
+    {skip: !hasEmulators},
+    async () => {
+      const publisher = await createConnectedPublisher("collision");
+      const recordId = `publish-collision-${Date.now()}`;
+      const postReference = database.collection("sharedPosts").doc(recordId);
+      await createPost(recordId, "victim-owner");
+      await database.collection("users").doc(publisher.userId)
+          .collection("records").doc(recordId).set({
+            ownerId: publisher.userId,
+            createdAt: Timestamp.now(),
+            category: "직장",
+            moodEmoji: "😤",
+            moodLabel: "많이 화남",
+            text: "다른 사용자의 게시물을 덮어쓰려는 기록입니다.",
+            storyId: recordId,
+            shared: false,
+          });
+
+      try {
+        await assert.rejects(
+            publisher.publish({recordId}),
+            (error) => error.code === "functions/already-exists",
+        );
+        const post = await postReference.get();
+        assert.equal(post.data().ownerId, "victim-owner");
+        assert.equal(post.data().text, "오늘 회사에서 속상한 일이 있었어요.");
+      } finally {
+        await deleteApp(publisher.app);
+        await getAdminAuth().deleteUser(publisher.userId);
+      }
+    },
+);
+
+test(
+    "re-publishing an owned post preserves moderation and reaction state",
+    {skip: !hasEmulators},
+    async () => {
+      const recordId = `publish-idempotent-${Date.now()}`;
+      const recordReference = database.collection("users").doc(clientUserId)
+          .collection("records").doc(recordId);
+      const postReference = database.collection("sharedPosts").doc(recordId);
+      await recordReference.set({
+        ownerId: clientUserId,
+        createdAt: Timestamp.now(),
+        category: "직장",
+        moodEmoji: "😤",
+        moodLabel: "많이 화남",
+        text: "재시도해도 공개 상태가 보존되어야 합니다.",
+        storyId: recordId,
+        shared: false,
+      });
+      await publishSharedRecord({recordId});
+      await postReference.update({
+        reactions: [1, 0, 0],
+        reactedBy: ["reactor"],
+        reportCount: 1,
+        reportedBy: ["reporter"],
+      });
+
+      const result = await publishSharedRecord({recordId});
+      const post = await postReference.get();
+
+      assert.equal(result.data.published, true);
+      assert.deepEqual(post.data().reactions, [1, 0, 0]);
+      assert.deepEqual(post.data().reactedBy, ["reactor"]);
+      assert.equal(post.data().reportCount, 1);
+      assert.deepEqual(post.data().reportedBy, ["reporter"]);
     },
 );
 
