@@ -46,33 +46,26 @@ async function rejectReports(database, group, actionedBy) {
   });
 }
 
-async function markPostRemoved(database, group, actionedBy) {
+async function markReportsActionPending(database, group, actionedBy) {
+  await updateReports(database, group.reports, {
+    status: "action_pending",
+    resolution: "post_removal_and_user_suspension_pending",
+    actionStartedAt: Timestamp.now(),
+    actionedBy,
+  });
+}
+
+async function removePostAndPrivateShare(database, group) {
   const postReference = database.collection("sharedPosts").doc(group.postId);
   const recordReference = database.collection("users").doc(group.ownerId)
       .collection("records").doc(group.postId);
   await database.runTransaction(async (transaction) => {
-    const references = [
-      postReference,
-      recordReference,
-      ...group.reports.map((report) => report.ref),
-    ];
-    const snapshots = await transaction.getAll(...references);
-    const [post, record, ...reports] = snapshots;
+    const [post, record] = await transaction.getAll(
+        postReference,
+        recordReference,
+    );
     if (post.exists) transaction.delete(postReference);
     if (record.exists) transaction.update(recordReference, {shared: false});
-    const actionStartedAt = Timestamp.now();
-    for (const report of reports) {
-      if (!report.exists ||
-          !actionableStatuses.has(report.data().status)) {
-        continue;
-      }
-      transaction.update(report.ref, {
-        status: "action_pending",
-        resolution: "post_removed_user_suspension_pending",
-        actionStartedAt,
-        actionedBy,
-      });
-    }
   });
 }
 
@@ -126,7 +119,8 @@ async function resolveContentReport({
   if (action !== "remove-and-suspend") {
     throw new Error(`Unsupported moderation action: ${action}`);
   }
-  await markPostRemoved(database, group, actionedBy);
+  await markReportsActionPending(database, group, actionedBy);
+  await removePostAndPrivateShare(database, group);
   await suspendOwner(database, authentication, group, actionedBy);
   return {...group, resolvedCount: group.reports.length};
 }

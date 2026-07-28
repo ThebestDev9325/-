@@ -7,10 +7,24 @@ import 'community_safety.dart';
 
 class SharedPreferencesCommunitySafetyStore implements CommunitySafetyStore {
   static const _keyPrefix = 'community_safety.v1.';
+  static const _activeUserKey = 'community_safety.v1.active_user';
 
   Future<void> _writeQueue = Future.value();
 
   String _key(String userId) => '$_keyPrefix$userId';
+
+  @override
+  Future<CommunitySafetyState> activate(String userId) {
+    late CommunitySafetyState activated;
+    return _serialize(() async {
+      final preferences = await SharedPreferences.getInstance();
+      final previousUserId = preferences.getString(_activeUserKey);
+      activated = previousUserId == null || previousUserId == userId
+          ? await _loadNow(userId)
+          : await _migrateNow(previousUserId, userId);
+      await preferences.setString(_activeUserKey, userId);
+    }).then((_) => activated);
+  }
 
   @override
   Future<CommunitySafetyState> load(String userId) async {
@@ -79,26 +93,11 @@ class SharedPreferencesCommunitySafetyStore implements CommunitySafetyStore {
     if (fromUserId == toUserId) return load(toUserId);
     late CommunitySafetyState merged;
     return _serialize(() async {
-      final source = await _loadNow(fromUserId);
-      final target = await _loadNow(toUserId);
-      final reportsByPostId = {
-        for (final report in target.pendingReports) report.postId: report,
-        for (final report in source.pendingReports) report.postId: report,
-      };
-      merged = CommunitySafetyState(
-        hiddenPostIds: {...target.hiddenPostIds, ...source.hiddenPostIds},
-        blockedOwnerIds: {
-          ...target.blockedOwnerIds,
-          ...source.blockedOwnerIds,
-        },
-        pendingReports: reportsByPostId.values.toList(),
-      );
       final preferences = await SharedPreferences.getInstance();
-      await preferences.setString(
-        _key(toUserId),
-        jsonEncode(merged.toJson()),
-      );
-      await preferences.remove(_key(fromUserId));
+      merged = await _migrateNow(fromUserId, toUserId);
+      if (preferences.getString(_activeUserKey) == fromUserId) {
+        await preferences.setString(_activeUserKey, toUserId);
+      }
     }).then((_) => merged);
   }
 
@@ -107,6 +106,9 @@ class SharedPreferencesCommunitySafetyStore implements CommunitySafetyStore {
     return _serialize(() async {
       final preferences = await SharedPreferences.getInstance();
       await preferences.remove(_key(userId));
+      if (preferences.getString(_activeUserKey) == userId) {
+        await preferences.remove(_activeUserKey);
+      }
     });
   }
 
@@ -137,6 +139,27 @@ class SharedPreferencesCommunitySafetyStore implements CommunitySafetyStore {
     } on TypeError {
       return const CommunitySafetyState();
     }
+  }
+
+  Future<CommunitySafetyState> _migrateNow(
+    String fromUserId,
+    String toUserId,
+  ) async {
+    final source = await _loadNow(fromUserId);
+    final target = await _loadNow(toUserId);
+    final reportsByPostId = {
+      for (final report in target.pendingReports) report.postId: report,
+      for (final report in source.pendingReports) report.postId: report,
+    };
+    final merged = CommunitySafetyState(
+      hiddenPostIds: {...target.hiddenPostIds, ...source.hiddenPostIds},
+      blockedOwnerIds: {...target.blockedOwnerIds, ...source.blockedOwnerIds},
+      pendingReports: reportsByPostId.values.toList(),
+    );
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setString(_key(toUserId), jsonEncode(merged.toJson()));
+    await preferences.remove(_key(fromUserId));
+    return merged;
   }
 
   Future<void> _serialize(Future<void> Function() operation) {

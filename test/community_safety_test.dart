@@ -112,4 +112,19 @@ void main() {
     expect((await store.load('anonymous')).hiddenPostIds, isEmpty);
     expect((await store.load('linked')).toJson(), migrated.toJson());
   });
+
+  test('로그인 직후 종료돼도 다음 실행에서 익명 상태 이전을 재개한다', () async {
+    SharedPreferences.setMockInitialValues({});
+    final firstSession = SharedPreferencesCommunitySafetyStore();
+    await firstSession.activate('anonymous');
+    await firstSession.hidePost('anonymous', 'hidden-before-login');
+    await firstSession.blockAuthor('anonymous', 'blocked-before-login');
+
+    final restartedSession = SharedPreferencesCommunitySafetyStore();
+    final restored = await restartedSession.activate('linked');
+
+    expect(restored.hiddenPostIds, contains('hidden-before-login'));
+    expect(restored.blockedOwnerIds, contains('blocked-before-login'));
+    expect((await restartedSession.load('anonymous')).hiddenPostIds, isEmpty);
+  });
 }

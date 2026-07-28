@@ -11,6 +11,7 @@ const {
   connectAuthEmulator,
   getAuth,
   signInAnonymously,
+  signInWithCustomToken,
 } = require("firebase/auth");
 const {
   connectFunctionsEmulator,
@@ -61,11 +62,13 @@ async function createAnonymousReporter(name) {
   connectAuthEmulator(auth, "http://127.0.0.1:9099", {
     disableWarnings: true,
   });
-  await signInAnonymously(auth);
+  const credential = await signInAnonymously(auth);
   const functions = getFunctions(app, "asia-northeast3");
   connectFunctionsEmulator(functions, "127.0.0.1", 5001);
   return {
     app,
+    userId: credential.user.uid,
+    publish: httpsCallable(functions, "publishSharedRecord"),
     report: httpsCallable(functions, "reportSharedPost"),
   };
 }
@@ -81,8 +84,14 @@ test.before(async () => {
   connectAuthEmulator(auth, "http://127.0.0.1:9099", {
     disableWarnings: true,
   });
-  const credential = await signInAnonymously(auth);
-  clientUserId = credential.user.uid;
+  clientUserId = `kakao:test-${Date.now()}`;
+  const authentication = getAdminAuth();
+  await authentication.createUser({uid: clientUserId});
+  const customToken = await authentication.createCustomToken(
+      clientUserId,
+      {provider: "kakao"},
+  );
+  await signInWithCustomToken(auth, customToken);
   const functions = getFunctions(clientApp, "asia-northeast3");
   connectFunctionsEmulator(functions, "127.0.0.1", 5001);
   publishSharedRecord = httpsCallable(functions, "publishSharedRecord");
@@ -91,6 +100,7 @@ test.before(async () => {
 
 test.after(async () => {
   if (clientApp) await deleteApp(clientApp);
+  if (clientUserId) await getAdminAuth().deleteUser(clientUserId);
 });
 
 test(
@@ -119,6 +129,38 @@ test(
       assert.equal(post.data().ownerId, clientUserId);
       assert.deepEqual(post.data().reportedBy, []);
       assert.equal(record.data().shared, true);
+    },
+);
+
+test(
+    "anonymous authentication cannot publish to the shared feed",
+    {skip: !hasEmulators},
+    async () => {
+      const reporter = await createAnonymousReporter("publish");
+      const recordId = `anonymous-publish-${Date.now()}`;
+      await database.collection("users").doc(reporter.userId)
+          .collection("records").doc(recordId).set({
+            ownerId: reporter.userId,
+            createdAt: Timestamp.now(),
+            category: "직장",
+            moodEmoji: "😤",
+            moodLabel: "많이 화남",
+            text: "익명 계정으로 공유를 시도합니다.",
+            storyId: recordId,
+            shared: false,
+          });
+
+      try {
+        await assert.rejects(
+            reporter.publish({recordId}),
+            (error) => error.code === "functions/permission-denied",
+        );
+        const post = await database.collection("sharedPosts")
+            .doc(recordId).get();
+        assert.equal(post.exists, false);
+      } finally {
+        await deleteApp(reporter.app);
+      }
     },
 );
 
@@ -219,6 +261,49 @@ test(
           ),
       );
       assert.ok(reports.every((report) => report.data().suspensionError));
+    },
+);
+
+test(
+    "moderation handles more than one Firestore transaction of reports",
+    {skip: !hasEmulators},
+    async () => {
+      const ownerId = `moderation-scale-owner-${Date.now()}`;
+      const postId = `moderation-scale-post-${Date.now()}`;
+      const authentication = getAdminAuth();
+      await authentication.createUser({uid: ownerId});
+      await createPost(postId, ownerId);
+      const writer = database.bulkWriter();
+      const reportReferences = Array.from({length: 501}, (_, index) => {
+        const reference = database.collection("contentReports")
+            .doc(`${postId}-report-${index}`);
+        writer.set(reference, {
+          postId,
+          ownerId,
+          reporterId: `reporter-${index}`,
+          status: "pending",
+          deadlineAt: Timestamp.now(),
+        });
+        return reference;
+      });
+      await writer.close();
+
+      const result = await resolveContentReport({
+        database,
+        authentication,
+        reportId: reportReferences[0].id,
+        action: "remove-and-suspend",
+        actionedBy: "moderator@example.com",
+      });
+      const reports = await database.collection("contentReports")
+          .where("postId", "==", postId)
+          .get();
+
+      assert.equal(result.resolvedCount, 501);
+      assert.ok(reports.docs.every((report) => {
+        return report.data().status === "resolved";
+      }));
+      await authentication.deleteUser(ownerId);
     },
 );
 
@@ -397,6 +482,13 @@ test(
       await database.collection("contentReports").doc("delete-submitted-report")
           .set({ownerId: "other", reporterId: uid});
       await database.collection("reportRateLimits").doc(uid).set({count: 1});
+      await createPost("delete-observed", "other-owner");
+      await database.collection("sharedPosts").doc("delete-observed").update({
+        reportedBy: [uid, "other-reporter"],
+        reactedBy: [uid, "other-reactor"],
+        reportCount: 2,
+        reactions: [2, 0, 0],
+      });
 
       await deleteAccountData({database, authentication, uid});
 
@@ -407,8 +499,17 @@ test(
         database.collection("contentReports")
             .doc("delete-submitted-report").get(),
         database.collection("reportRateLimits").doc(uid).get(),
+        database.collection("sharedPosts").doc("delete-observed").get(),
       ]);
-      assert.ok(remaining.every((snapshot) => !snapshot.exists));
+      assert.ok(remaining.slice(0, -1).every((snapshot) => !snapshot.exists));
+      assert.deepEqual(
+          remaining.at(-1).data().reportedBy,
+          ["other-reporter"],
+      );
+      assert.deepEqual(
+          remaining.at(-1).data().reactedBy,
+          ["other-reactor"],
+      );
       await assert.rejects(
           authentication.getUser(uid),
           (error) => error.code === "auth/user-not-found",

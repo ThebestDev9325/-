@@ -46,6 +46,23 @@ function reporterHash(reporterId) {
   return createHash("sha256").update(reporterId).digest("hex");
 }
 
+async function requireConnectedAccount(request) {
+  const uid = request.auth.uid;
+  const isKakaoAccount = uid.startsWith("kakao:") &&
+    request.auth.token.provider === "kakao";
+  if (isKakaoAccount) return;
+  const user = await getAuth().getUser(uid);
+  const hasAppleProvider = user.providerData.some(
+      (provider) => provider.providerId === "apple.com",
+  );
+  if (!hasAppleProvider) {
+    throw new HttpsError(
+        "permission-denied",
+        "공유하려면 카카오 또는 Apple 계정 연결이 필요합니다.",
+    );
+  }
+}
+
 async function resetPrivateRecordSharing(transaction, ownerId, postId) {
   const recordRef = db.collection("users").doc(ownerId)
       .collection("records").doc(postId);
@@ -83,6 +100,7 @@ exports.publishSharedRecord = onCall(
       if (!request.auth) {
         throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
       }
+      await requireConnectedAccount(request);
       const recordId = request.data && request.data.recordId;
       if (!validDocumentId(recordId)) {
         throw new HttpsError(

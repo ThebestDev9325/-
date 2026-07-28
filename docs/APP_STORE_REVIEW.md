@@ -13,16 +13,19 @@
 
 ## 배포 및 운영
 
-1. `firebase deploy --only functions`
-2. `publishSharedRecord`와 구버전 `reportSharedPost` smoke test
-3. `node functions/scripts/migrate_reported_by.js`
-4. 새 iOS/Android 앱을 배포하고 서버 전용 게시 경로 사용 여부 확인
-5. 구버전 직접 게시 클라이언트의 업그레이드가 끝난 뒤
-   `firebase deploy --only firestore:rules,firestore:indexes`
-6. Cloud Logging의 `content_report_received`, `deadline_approaching`,
+1. `firebase deploy --only firestore:indexes`
+2. `firebase firestore:indexes`에서 `contentReports` 복합 인덱스가
+   `READY`인지 확인
+3. `firebase deploy --only functions`
+4. `publishSharedRecord`와 구버전 `reportSharedPost` smoke test
+5. `node functions/scripts/migrate_reported_by.js`
+6. App Store 재심사 전에 `firebase deploy --only firestore:rules`
+7. 새 iOS/Android 앱을 배포하고 서버 전용 게시 경로 사용 여부 확인
+8. 구버전 앱의 직접 공유가 차단되는 기간에는 공유 실패 문의를 모니터링
+9. Cloud Logging의 `content_report_received`, `deadline_approaching`,
    `deadline_overdue`, `moderation_action_required`,
    `moderation_action_overdue` 로그를 개발자 이메일 알림 채널에 연결
-7. 신고 접수 시 `contentReports`를 확인하고 24시간 이내 다음 명령으로 처리
+10. 신고 접수 시 `contentReports`를 확인하고 24시간 이내 다음 명령으로 처리
 
 ```bash
 node functions/scripts/resolve_content_report.js REPORT_ID remove-and-suspend
@@ -37,8 +40,8 @@ node functions/scripts/resolve_content_report.js REPORT_ID reject
   `contentReports`를 모두 이해하는 이 커밋으로 롤백한다.
 - 모든 활성 클라이언트와 롤백 기간이 지난 뒤 별도 축소 배포에서
   `reportedBy` 쓰기와 기존 필드를 제거한다.
-- Firestore의 직접 게시 차단 규칙은 새 앱 배포보다 먼저 운영에 배포하지
-  않는다. 그렇지 않으면 기존 앱의 공유 기능이 중단된다.
+- Firestore의 직접 게시 차단 규칙은 App Store 재심사 전에 운영에 배포한다.
+  구버전 앱의 직접 공유는 새 앱 배포 전까지 일시 중단될 수 있다.
 
 ## 검증 명령
 
@@ -51,8 +54,8 @@ PATH="/opt/homebrew/opt/openjdk@21/bin:$PATH" \
   "npm --prefix functions test"
 ```
 
-검증 결과: Flutter 테스트 66개, Functions/Firestore/Auth Emulator 테스트
-34개, iOS Simulator 빌드, iPhone 17 Pro Max 및 iPad Air 11-inch
+검증 결과: Flutter 테스트 68개, Functions/Firestore/Auth Emulator 테스트
+37개, iOS Simulator 빌드, iPhone 17 Pro Max 및 iPad Air 11-inch
 시뮬레이터 렌더링을 통과했다.
 
 ## 심사 노트

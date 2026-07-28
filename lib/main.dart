@@ -3,7 +3,6 @@ import 'dart:math';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'apple_auth_service.dart';
@@ -226,7 +225,7 @@ class _AppShellState extends State<AppShell> {
       final savedRecords = await AppFirebaseService.instance.loadRecords();
       final accountLabel =
           await AppFirebaseService.instance.linkedAccountLabel();
-      final safetyState = await _communitySafetyStore.load(userId);
+      final safetyState = await _communitySafetyStore.activate(userId);
       if (!mounted) return;
       setState(() {
         currentUserId = userId;
@@ -556,10 +555,7 @@ class _AppShellState extends State<AppShell> {
         activeUserId == currentUserId) {
       return;
     }
-    final migrated = await _communitySafetyStore.migrate(
-      currentUserId,
-      activeUserId,
-    );
+    final migrated = await _communitySafetyStore.activate(activeUserId);
     if (!mounted) return;
     setState(() {
       currentUserId = activeUserId;
@@ -1852,9 +1848,6 @@ class _WritingFlowState extends State<WritingFlow> {
           TextField(
             controller: textController,
             maxLines: 6,
-            inputFormatters: [
-              LengthLimitingTextInputFormatter(2000),
-            ],
             decoration: const InputDecoration(
               hintText: '예) 의욕만 앞서서 너무 실수가 잦다.',
               border: OutlineInputBorder(),

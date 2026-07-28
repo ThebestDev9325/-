@@ -216,6 +216,7 @@ class CommunitySafetyState {
 }
 
 abstract interface class CommunitySafetyStore {
+  Future<CommunitySafetyState> activate(String userId);
   Future<CommunitySafetyState> load(String userId);
   Future<void> hidePost(String userId, String postId);
   Future<void> blockAuthor(String userId, String ownerId);
