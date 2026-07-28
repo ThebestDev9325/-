@@ -9,9 +9,11 @@ enum CommunityContentViolation {
   harassment('harassment', '괴롭힘이나 비방 표현이 포함된 글은 공유할 수 없습니다.'),
   hate('hate', '혐오나 차별 표현이 포함된 글은 공유할 수 없습니다.'),
   violence('violence', '위협이나 폭력 표현이 포함된 글은 공유할 수 없습니다.'),
+  selfHarm('self_harm', '자해를 조장하는 표현이 포함된 글은 공유할 수 없습니다.'),
   sexual('sexual', '성적인 표현이 포함된 글은 공유할 수 없습니다.'),
   illegal('illegal', '불법 행위를 조장하는 글은 공유할 수 없습니다.'),
-  spam('spam', '광고나 도배성 글은 공유할 수 없습니다.');
+  spam('spam', '광고나 도배성 글은 공유할 수 없습니다.'),
+  tooLong('text_too_long', '공유 글은 2,000자 이내로 작성해주세요.');
 
   const CommunityContentViolation(this.wireName, this.message);
 
@@ -23,6 +25,7 @@ enum CommunityReportReason {
   harassment('harassment', '괴롭힘 또는 비방'),
   hate('hate', '혐오 또는 차별'),
   violence('violence', '위협 또는 폭력'),
+  selfHarm('self_harm', '자해 조장'),
   sexual('sexual', '성적인 콘텐츠'),
   personalInformation('personal_information', '개인정보 노출'),
   illegal('illegal', '불법 행위'),
@@ -82,6 +85,7 @@ CommunityContentViolation? findCommunityContentViolation({
       communityMoods[moodEmoji] != moodLabel) {
     return CommunityContentViolation.invalidMetadata;
   }
+  if (text.length > 2000) return CommunityContentViolation.tooLong;
 
   final normalized = unicode
       .nfkc(text)
@@ -104,6 +108,12 @@ CommunityContentViolation? findCommunityContentViolation({
     const ['죽여버리', '죽여버릴', '칼로찌르', '폭탄테러', '패죽이'],
   )) {
     return CommunityContentViolation.violence;
+  }
+  if (_containsAny(
+    compact,
+    const ['자살해', '죽어버려', '죽는게낫', '스스로죽어', '자해해'],
+  )) {
+    return CommunityContentViolation.selfHarm;
   }
   if (_containsAny(compact, const ['야동', '성매매', '강간', '음란물'])) {
     return CommunityContentViolation.sexual;
@@ -214,5 +224,9 @@ abstract interface class CommunitySafetyStore {
     PendingCommunityReport report,
   );
   Future<void> completeReport(String userId, String postId);
+  Future<CommunitySafetyState> migrate(
+    String fromUserId,
+    String toUserId,
+  );
   Future<void> clear(String userId);
 }

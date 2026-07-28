@@ -53,9 +53,9 @@ test.beforeEach(async () => {
   await environment.clearFirestore();
 });
 
-test("owner can create a valid shared post", async () => {
+test("clients cannot publish directly to the shared feed", async () => {
   const firestore = environment.authenticatedContext("owner").firestore();
-  await assertSucceeds(
+  await assertFails(
       setDoc(doc(firestore, "sharedPosts/post-1"), validPost()),
   );
 });

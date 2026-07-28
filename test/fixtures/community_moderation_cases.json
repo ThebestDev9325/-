@@ -56,6 +56,14 @@
     "expected": "violence"
   },
   {
+    "name": "self-harm encouragement",
+    "text": "너는 그냥 자살해.",
+    "category": "타인",
+    "moodEmoji": "🤬",
+    "moodLabel": "폭발 직전",
+    "expected": "self_harm"
+  },
+  {
     "name": "sexual",
     "text": "불법 야동을 같이 보자.",
     "category": "기타",

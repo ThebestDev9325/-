@@ -112,57 +112,52 @@ class AppFirebaseService {
 
   Future<void> saveRecord(EmotionRecord record) async {
     final ownerId = userId;
-    final data = <String, Object?>{
-      'ownerId': ownerId,
-      'createdAt': Timestamp.fromDate(record.createdAt),
-      'category': record.category,
-      'moodEmoji': record.moodEmoji,
-      'moodLabel': record.moodLabel,
-      'text': record.text,
-      'storyId': record.story.id,
-      'shared': record.shared,
-    };
-    final batch = _db.batch();
-    batch.set(
-      _db.collection('users').doc(ownerId).collection('records').doc(record.id),
-      data,
-    );
-    if (record.shared) {
-      batch.set(_db.collection('sharedPosts').doc(record.id), {
-        ...data,
-        'reactions': [0, 0, 0],
-        'reactedBy': <String>[],
-        'reportCount': 0,
-      });
-    }
-    await batch.commit();
+    await _db
+        .collection('users')
+        .doc(ownerId)
+        .collection('records')
+        .doc(record.id)
+        .set(
+          _recordData(record, shared: false),
+        );
+    if (record.shared) await _publishRecord(record.id);
   }
 
   Future<void> shareRecord(EmotionRecord record) async {
     final ownerId = userId;
-    final data = <String, Object?>{
-      'ownerId': ownerId,
+    await _db
+        .collection('users')
+        .doc(ownerId)
+        .collection('records')
+        .doc(record.id)
+        .set(
+          _recordData(record, shared: false),
+          SetOptions(merge: true),
+        );
+    await _publishRecord(record.id);
+  }
+
+  Map<String, Object?> _recordData(
+    EmotionRecord record, {
+    required bool shared,
+  }) {
+    return {
+      'ownerId': userId,
       'createdAt': Timestamp.fromDate(record.createdAt),
       'category': record.category,
       'moodEmoji': record.moodEmoji,
       'moodLabel': record.moodLabel,
       'text': record.text,
       'storyId': record.story.id,
-      'shared': true,
+      'shared': shared,
     };
-    final batch = _db.batch();
-    batch.set(
-      _db.collection('users').doc(ownerId).collection('records').doc(record.id),
-      data,
-      SetOptions(merge: true),
-    );
-    batch.set(_db.collection('sharedPosts').doc(record.id), {
-      ...data,
-      'reactions': [0, 0, 0],
-      'reactedBy': <String>[],
-      'reportCount': 0,
-    });
-    await batch.commit();
+  }
+
+  Future<void> _publishRecord(String recordId) async {
+    final callable = FirebaseFunctions.instanceFor(
+      region: 'asia-northeast3',
+    ).httpsCallable('publishSharedRecord');
+    await callable.call<void>(<String, dynamic>{'recordId': recordId});
   }
 
   Future<void> react(SharedPost post, int reactionIndex) async {

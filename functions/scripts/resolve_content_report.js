@@ -1,77 +1,45 @@
 const {applicationDefault, initializeApp} = require("firebase-admin/app");
 const {getAuth} = require("firebase-admin/auth");
-const {getFirestore, Timestamp} = require("firebase-admin/firestore");
+const {getFirestore} = require("firebase-admin/firestore");
+const {resolveContentReport} = require("../content_report_resolution");
 
 initializeApp({credential: applicationDefault()});
 const database = getFirestore();
 
-const [reportId, action] = process.argv.slice(2);
 const allowedActions = new Set(["remove-and-suspend", "reject"]);
-if (!reportId || !allowedActions.has(action)) {
-  process.stderr.write(
-      "Usage: node scripts/resolve_content_report.js <reportId> " +
-      "<remove-and-suspend|reject>\n",
-  );
-  process.exit(2);
-}
-
 const actionedBy = process.env.MODERATOR_EMAIL || "a01041989325@gmail.com";
 
-async function rejectReport(reportReference) {
-  await reportReference.update({
-    status: "rejected",
-    resolution: "no_violation",
-    resolvedAt: Timestamp.now(),
-    actionedBy,
-  });
-}
-
-async function removePost(reportReference) {
-  return database.runTransaction(async (transaction) => {
-    const report = await transaction.get(reportReference);
-    if (!report.exists) throw new Error(`Report not found: ${reportId}`);
-    const data = report.data();
-    const postReference = database.collection("sharedPosts").doc(data.postId);
-    const recordReference = database.collection("users").doc(data.ownerId)
-        .collection("records").doc(data.postId);
-    const post = await transaction.get(postReference);
-    const record = await transaction.get(recordReference);
-    if (post.exists) transaction.delete(postReference);
-    if (record.exists) transaction.update(recordReference, {shared: false});
-    transaction.update(reportReference, {
-      status: "resolved",
-      resolution: "post_removed",
-      resolvedAt: Timestamp.now(),
-      actionedBy,
-    });
-    return String(data.ownerId);
-  });
-}
-
 async function main() {
-  const reportReference = database.collection("contentReports").doc(reportId);
-  if (action === "reject") {
-    await rejectReport(reportReference);
-    process.stdout.write(`Rejected report ${reportId}.\n`);
+  const [reportId, action] = process.argv.slice(2);
+  if (!reportId || !allowedActions.has(action)) {
+    process.stderr.write(
+        "Usage: node scripts/resolve_content_report.js <reportId> " +
+        "<remove-and-suspend|reject>\n",
+    );
+    process.exitCode = 2;
     return;
   }
-
-  const ownerId = await removePost(reportReference);
-  try {
-    await getAuth().updateUser(ownerId, {disabled: true});
-    await reportReference.update({
-      resolution: "post_removed_and_user_suspended",
-      suspendedAt: Timestamp.now(),
-    });
-  } catch (error) {
-    await reportReference.update({
-      status: "action_required",
-      resolution: "post_removed_user_suspension_failed",
-      suspensionError: String(error.message || error).slice(0, 500),
-    });
-    throw error;
+  const result = await resolveContentReport({
+    database,
+    authentication: getAuth(),
+    reportId,
+    action,
+    actionedBy,
+  });
+  if (result.resolvedCount === 0) {
+    process.stdout.write(`No actionable reports remain for ${result.postId}.\n`);
+    return;
   }
-  process.stdout.write(`Resolved report ${reportId} and suspended ${ownerId}.\n`);
+  if (action === "reject") {
+    process.stdout.write(
+        `Rejected ${result.resolvedCount} reports for ${result.postId}.\n`,
+    );
+    return;
+  }
+  process.stdout.write(
+      `Resolved ${result.resolvedCount} reports and suspended ` +
+      `${result.ownerId}.\n`,
+  );
 }
 
 main().catch((error) => {

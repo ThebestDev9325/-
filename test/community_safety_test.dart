@@ -30,6 +30,20 @@ void main() {
     }
   });
 
+  test('공유 글 길이는 2,000자까지 허용한다', () {
+    CommunityContentViolation? violation(String text) {
+      return findCommunityContentViolation(
+        text: text,
+        category: '기타',
+        moodEmoji: '😐',
+        moodLabel: '답답함',
+      );
+    }
+
+    expect(violation('가' * 2000), isNull);
+    expect(violation('가' * 2001), CommunityContentViolation.tooLong);
+  });
+
   test('숨김, 차단, pending 신고를 계정별 단일 상태로 영속화한다', () async {
     SharedPreferences.setMockInitialValues({});
     final store = SharedPreferencesCommunitySafetyStore();
@@ -63,5 +77,39 @@ void main() {
 
     expect((await store.load('user-a')).hiddenPostIds, isEmpty);
     expect((await store.load('user-b')).hiddenPostIds, contains('post-b'));
+  });
+
+  test('익명 계정의 안전 상태를 연결 계정으로 병합한다', () async {
+    SharedPreferences.setMockInitialValues({});
+    final store = SharedPreferencesCommunitySafetyStore();
+    const anonymousReport = PendingCommunityReport(
+      postId: 'post-anonymous',
+      ownerId: 'owner-a',
+      reason: CommunityReportReason.spam,
+    );
+    const linkedReport = PendingCommunityReport(
+      postId: 'post-linked',
+      ownerId: 'owner-b',
+      reason: CommunityReportReason.hate,
+    );
+    await store.hidePost('anonymous', 'hidden-anonymous');
+    await store.blockAuthor('anonymous', 'blocked-anonymous');
+    await store.enqueueReport('anonymous', anonymousReport);
+    await store.hidePost('linked', 'hidden-linked');
+    await store.enqueueReport('linked', linkedReport);
+
+    final migrated = await store.migrate('anonymous', 'linked');
+
+    expect(
+      migrated.hiddenPostIds,
+      containsAll(['hidden-anonymous', 'hidden-linked', 'post-anonymous']),
+    );
+    expect(migrated.blockedOwnerIds, contains('blocked-anonymous'));
+    expect(
+      migrated.pendingReports.map((report) => report.postId),
+      containsAll(['post-anonymous', 'post-linked']),
+    );
+    expect((await store.load('anonymous')).hiddenPostIds, isEmpty);
+    expect((await store.load('linked')).toJson(), migrated.toJson());
   });
 }

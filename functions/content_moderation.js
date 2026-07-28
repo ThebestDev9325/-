@@ -35,6 +35,10 @@ const patterns = [
     terms: ["죽여버리", "죽여버릴", "칼로찌르", "폭탄테러", "패죽이"],
   },
   {
+    name: "self_harm",
+    terms: ["자살해", "죽어버려", "죽는게낫", "스스로죽어", "자해해"],
+  },
+  {
     name: "sexual",
     terms: ["야동", "성매매", "강간", "음란물"],
   },
@@ -66,6 +70,7 @@ function findContentViolation({text, category, moodEmoji, moodLabel}) {
       COMMUNITY_MOODS.get(moodEmoji) !== moodLabel) {
     return "invalid_metadata";
   }
+  if (text.length > 2000) return "text_too_long";
 
   const normalized = normalizedText(text);
   const compact = compactText(normalized);

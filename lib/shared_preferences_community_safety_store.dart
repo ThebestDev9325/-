@@ -72,6 +72,37 @@ class SharedPreferencesCommunitySafetyStore implements CommunitySafetyStore {
   }
 
   @override
+  Future<CommunitySafetyState> migrate(
+    String fromUserId,
+    String toUserId,
+  ) {
+    if (fromUserId == toUserId) return load(toUserId);
+    late CommunitySafetyState merged;
+    return _serialize(() async {
+      final source = await _loadNow(fromUserId);
+      final target = await _loadNow(toUserId);
+      final reportsByPostId = {
+        for (final report in target.pendingReports) report.postId: report,
+        for (final report in source.pendingReports) report.postId: report,
+      };
+      merged = CommunitySafetyState(
+        hiddenPostIds: {...target.hiddenPostIds, ...source.hiddenPostIds},
+        blockedOwnerIds: {
+          ...target.blockedOwnerIds,
+          ...source.blockedOwnerIds,
+        },
+        pendingReports: reportsByPostId.values.toList(),
+      );
+      final preferences = await SharedPreferences.getInstance();
+      await preferences.setString(
+        _key(toUserId),
+        jsonEncode(merged.toJson()),
+      );
+      await preferences.remove(_key(fromUserId));
+    }).then((_) => merged);
+  }
+
+  @override
   Future<void> clear(String userId) {
     return _serialize(() async {
       final preferences = await SharedPreferences.getInstance();

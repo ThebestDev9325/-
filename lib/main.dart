@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'apple_auth_service.dart';
@@ -425,6 +426,7 @@ class _AppShellState extends State<AppShell> {
         : nickname;
     final activeAccountLabel =
         await AppFirebaseService.instance.linkedAccountLabel();
+    await _syncSafetyAfterAccountChange();
     if (!mounted) return;
     final record = EmotionRecord(
       id: DateTime.now().microsecondsSinceEpoch.toString(),
@@ -505,6 +507,7 @@ class _AppShellState extends State<AppShell> {
         ),
       );
       if (!mounted || linked != true) return false;
+      await _syncSafetyAfterAccountChange();
     }
 
     final sharedRecord = EmotionRecord(
@@ -544,6 +547,26 @@ class _AppShellState extends State<AppShell> {
       }
       return false;
     }
+  }
+
+  Future<void> _syncSafetyAfterAccountChange() async {
+    final activeUserId = AppFirebaseService.instance.currentUserId;
+    if (activeUserId == null ||
+        currentUserId == 'connecting' ||
+        activeUserId == currentUserId) {
+      return;
+    }
+    final migrated = await _communitySafetyStore.migrate(
+      currentUserId,
+      activeUserId,
+    );
+    if (!mounted) return;
+    setState(() {
+      currentUserId = activeUserId;
+      _communitySafetyState = migrated;
+    });
+    await _subscribeToSharedPosts();
+    unawaited(_retryPendingReports());
   }
 
   int _todayWritingCount() {
@@ -1829,6 +1852,9 @@ class _WritingFlowState extends State<WritingFlow> {
           TextField(
             controller: textController,
             maxLines: 6,
+            inputFormatters: [
+              LengthLimitingTextInputFormatter(2000),
+            ],
             decoration: const InputDecoration(
               hintText: '예) 의욕만 앞서서 너무 실수가 잦다.',
               border: OutlineInputBorder(),

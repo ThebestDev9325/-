@@ -5,24 +5,40 @@
 
 ## App Store Connect 설정
 
-- 앱 정보 → 연령 등급에서 익명 UGC 요구에 맞게 `18+`로 설정
-- 앱 정보 → 연령 등급 → `Advertising`을 `Yes`로 설정
-- Support URL을 `https://thebestdev9325.github.io/-/`로 변경
+- [x] 앱 정보 → 연령 등급에서 익명 UGC 요구에 맞게 `18+`로 설정
+- [x] 앱 정보 → 연령 등급 → `Advertising`을 `Yes`로 설정
+- [x] Support URL을 `https://thebestdev9325.github.io/-/`로 변경
 - GitHub Issues URL `https://github.com/ThebestDev9325/-/issues`는 사용하지 않음
+- 지원 페이지는 PR 병합 후 GitHub Pages에서 공개되는지 확인
 
 ## 배포 및 운영
 
 1. `firebase deploy --only functions`
-2. 신규 Functions의 구버전 신고 및 게시물 필터 smoke test
+2. `publishSharedRecord`와 구버전 `reportSharedPost` smoke test
 3. `node functions/scripts/migrate_reported_by.js`
-4. `firebase deploy --only firestore:rules`
-5. Cloud Logging의 `content_report_received`, `deadline_approaching`, `deadline_overdue` 로그를 개발자 이메일 알림 채널에 연결
-6. 신고 접수 시 `contentReports`를 확인하고 24시간 이내 다음 명령으로 처리
+4. 새 iOS/Android 앱을 배포하고 서버 전용 게시 경로 사용 여부 확인
+5. 구버전 직접 게시 클라이언트의 업그레이드가 끝난 뒤
+   `firebase deploy --only firestore:rules,firestore:indexes`
+6. Cloud Logging의 `content_report_received`, `deadline_approaching`,
+   `deadline_overdue`, `moderation_action_required`,
+   `moderation_action_overdue` 로그를 개발자 이메일 알림 채널에 연결
+7. 신고 접수 시 `contentReports`를 확인하고 24시간 이내 다음 명령으로 처리
 
 ```bash
 node functions/scripts/resolve_content_report.js REPORT_ID remove-and-suspend
 node functions/scripts/resolve_content_report.js REPORT_ID reject
 ```
+
+### 호환 배포 원칙
+
+- 확장 단계에서는 `reportedBy`를 유지하면서 비공개 `contentReports`를 함께
+  기록한다. 마이그레이션도 `reportedBy`를 삭제하지 않는다.
+- 이 단계에서 Functions를 롤백해야 하면 `reportedBy`와
+  `contentReports`를 모두 이해하는 이 커밋으로 롤백한다.
+- 모든 활성 클라이언트와 롤백 기간이 지난 뒤 별도 축소 배포에서
+  `reportedBy` 쓰기와 기존 필드를 제거한다.
+- Firestore의 직접 게시 차단 규칙은 새 앱 배포보다 먼저 운영에 배포하지
+  않는다. 그렇지 않으면 기존 앱의 공유 기능이 중단된다.
 
 ## 검증 명령
 
@@ -35,8 +51,9 @@ PATH="/opt/homebrew/opt/openjdk@21/bin:$PATH" \
   "npm --prefix functions test"
 ```
 
-검증 결과: Flutter 테스트 64개, Functions/Firestore/Auth Emulator 테스트
-21개, iPhone 17 Pro Max 및 iPad Air 11-inch 시뮬레이터 렌더링을 통과했다.
+검증 결과: Flutter 테스트 66개, Functions/Firestore/Auth Emulator 테스트
+34개, iOS Simulator 빌드, iPhone 17 Pro Max 및 iPad Air 11-inch
+시뮬레이터 렌더링을 통과했다.
 
 ## 심사 노트
 

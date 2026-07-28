@@ -6,7 +6,12 @@ const {initializeApp} = require("firebase-admin/app");
 const {getAuth} = require("firebase-admin/auth");
 const {getFirestore, Timestamp} = require("firebase-admin/firestore");
 const {createHash} = require("node:crypto");
+const {deleteAccountData} = require("./account_deletion");
 const {isValidSharedPost} = require("./content_moderation");
+const {
+  operationalReportStatuses,
+  reportDeadlineEvent,
+} = require("./report_monitoring");
 
 initializeApp();
 const db = getFirestore();
@@ -14,6 +19,7 @@ const reportReasons = new Set([
   "harassment",
   "hate",
   "violence",
+  "self_harm",
   "sexual",
   "personal_information",
   "illegal",
@@ -23,6 +29,13 @@ const reportReasons = new Set([
 ]);
 const reportLimitPerHour = 10;
 const reportDeadlineMilliseconds = 24 * 60 * 60 * 1000;
+
+function validDocumentId(value) {
+  return typeof value === "string" &&
+    value.length > 0 &&
+    value.length <= 128 &&
+    !value.includes("/");
+}
 
 function reportDocumentId(postId, reporterId) {
   const reporterHash = createHash("sha256").update(reporterId).digest("hex");
@@ -64,15 +77,63 @@ exports.signInWithKakao = onCall({region: "asia-northeast3"}, async (request) =>
   return {customToken};
 });
 
+exports.publishSharedRecord = onCall(
+    {region: "asia-northeast3"},
+    async (request) => {
+      if (!request.auth) {
+        throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
+      }
+      const recordId = request.data && request.data.recordId;
+      if (!validDocumentId(recordId)) {
+        throw new HttpsError(
+            "invalid-argument",
+            "공유할 마음 기록을 확인할 수 없습니다.",
+        );
+      }
+      const uid = request.auth.uid;
+      const recordRef = db.collection("users").doc(uid)
+          .collection("records").doc(recordId);
+      const postRef = db.collection("sharedPosts").doc(recordId);
+      await db.runTransaction(async (transaction) => {
+        const record = await transaction.get(recordRef);
+        if (!record.exists) {
+          throw new HttpsError("not-found", "공유할 마음 기록이 없습니다.");
+        }
+        const data = record.data();
+        const post = {
+          ownerId: uid,
+          createdAt: data.createdAt,
+          category: data.category,
+          moodEmoji: data.moodEmoji,
+          moodLabel: data.moodLabel,
+          text: data.text,
+          storyId: data.storyId,
+          shared: true,
+          reactions: [0, 0, 0],
+          reactedBy: [],
+          reportCount: 0,
+          // Kept during the expand phase so the previous callable can roll back.
+          reportedBy: [],
+        };
+        if (!isValidSharedPost(post)) {
+          throw new HttpsError(
+              "invalid-argument",
+              "공유할 수 없는 내용이 포함되어 있습니다.",
+          );
+        }
+        transaction.set(postRef, post);
+        transaction.update(recordRef, {shared: true});
+      });
+      return {published: true};
+    },
+);
+
 exports.reportSharedPost = onCall({region: "asia-northeast3"}, async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
   }
   const postId = request.data && request.data.postId;
-  if (typeof postId !== "string" ||
-      postId.length === 0 ||
-      postId.length > 128 ||
-      postId.includes("/")) {
+  if (!validDocumentId(postId)) {
     throw new HttpsError("invalid-argument", "신고할 사연을 확인할 수 없습니다.");
   }
   const requestedReason = request.data && request.data.reason;
@@ -109,6 +170,34 @@ exports.reportSharedPost = onCall({region: "asia-northeast3"}, async (request) =
         queued: false,
       };
     }
+    const legacyReporters = Array.isArray(data.reportedBy) ?
+      data.reportedBy.filter((value) => typeof value === "string") :
+      [];
+    if (legacyReporters.includes(uid)) {
+      transaction.create(reportRef, {
+        postId,
+        ownerId: String(data.ownerId),
+        reporterId: uid,
+        reason: "legacy_unspecified",
+        status: "pending",
+        createdAt: now,
+        deadlineAt: Timestamp.fromMillis(
+            now.toMillis() + reportDeadlineMilliseconds,
+        ),
+        snapshot: {
+          category: String(data.category || ""),
+          text: String(data.text || "").slice(0, 2000),
+          createdAt: data.createdAt || now,
+        },
+        migratedAt: now,
+      });
+      return {
+        reportCount: Number(data.reportCount) || legacyReporters.length,
+        removed: false,
+        alreadyReported: true,
+        queued: true,
+      };
+    }
     const rateLimit = await transaction.get(rateLimitRef);
     const rateData = rateLimit.data();
     const currentWindowStart = rateData && rateData.windowStart;
@@ -123,13 +212,6 @@ exports.reportSharedPost = onCall({region: "asia-northeast3"}, async (request) =
     }
 
     const reportCount = (Number(data.reportCount) || 0) + 1;
-    if (reportCount >= 5) {
-      await resetPrivateRecordSharing(
-          transaction,
-          String(data.ownerId),
-          postId,
-      );
-    }
     transaction.create(reportRef, {
       postId,
       ownerId: String(data.ownerId),
@@ -151,16 +233,10 @@ exports.reportSharedPost = onCall({region: "asia-northeast3"}, async (request) =
       count: currentCount + 1,
       updatedAt: now,
     });
-    if (reportCount >= 5) {
-      transaction.delete(postRef);
-      return {
-        reportCount,
-        removed: true,
-        alreadyReported: false,
-        queued: true,
-      };
-    }
-    transaction.update(postRef, {reportCount});
+    transaction.update(postRef, {
+      reportCount,
+      reportedBy: [...legacyReporters, uid],
+    });
     return {
       reportCount,
       removed: false,
@@ -190,7 +266,9 @@ exports.moderateCreatedSharedPost = onDocumentCreated(
       await db.runTransaction(async (transaction) => {
         const current = await transaction.get(snapshot.ref);
         if (!current.exists) return;
-        const ownerId = current.data().ownerId;
+        const currentData = current.data();
+        if (isValidSharedPost(currentData)) return;
+        const ownerId = currentData.ownerId;
         if (typeof ownerId === "string") {
           await resetPrivateRecordSharing(
               transaction,
@@ -213,46 +291,30 @@ exports.monitorPendingContentReports = onSchedule(
       const approaching = Timestamp.fromMillis(
           now.toMillis() + 4 * 60 * 60 * 1000,
       );
-      const reports = await db.collection("contentReports")
-          .where("deadlineAt", "<=", approaching)
-          .get();
-      for (const report of reports.docs) {
-        const data = report.data();
-        if (data.status !== "pending" || !(data.deadlineAt instanceof Timestamp)) {
-          continue;
+      for (const status of operationalReportStatuses) {
+        const reports = await db.collection("contentReports")
+            .where("status", "==", status)
+            .where("deadlineAt", "<=", approaching)
+            .get();
+        for (const report of reports.docs) {
+          const data = report.data();
+          if (!(data.deadlineAt instanceof Timestamp)) continue;
+          const eventName = reportDeadlineEvent(
+              status,
+              data.deadlineAt.toMillis(),
+              now.toMillis(),
+          );
+          if (!eventName) continue;
+          logger.error(eventName, {
+            reportId: report.id,
+            postId: data.postId,
+            status,
+            deadlineAt: data.deadlineAt.toMillis(),
+          });
         }
-        const overdue = data.deadlineAt.toMillis() <= now.toMillis();
-        logger.error(
-            overdue ? "deadline_overdue" : "deadline_approaching",
-            {
-              reportId: report.id,
-              postId: data.postId,
-              deadlineAt: data.deadlineAt.toMillis(),
-            },
-        );
       }
     },
 );
-
-async function deleteAccountData(uid) {
-  const userRef = db.collection("users").doc(uid);
-  const userSnapshot = await userRef.get();
-  const nickname = userSnapshot.data() && userSnapshot.data().nickname;
-  const sharedSnapshot = await db.collection("sharedPosts")
-      .where("ownerId", "==", uid).get();
-  const writer = db.bulkWriter();
-  for (const shared of sharedSnapshot.docs) writer.delete(shared.ref);
-  if (typeof nickname === "string" && nickname.trim()) {
-    const nicknameRef = db.collection("nicknames").doc(nickname.trim().toLowerCase());
-    const nicknameSnapshot = await nicknameRef.get();
-    if (nicknameSnapshot.data() && nicknameSnapshot.data().ownerId === uid) {
-      writer.delete(nicknameRef);
-    }
-  }
-  await writer.close();
-  await db.recursiveDelete(userRef);
-  await getAuth().deleteUser(uid);
-}
 
 exports.deleteKakaoAccount = onCall({region: "asia-northeast3"}, async (request) => {
   if (!request.auth) {
@@ -265,7 +327,11 @@ exports.deleteKakaoAccount = onCall({region: "asia-northeast3"}, async (request)
     throw new HttpsError("permission-denied", "현재 로그인한 카카오 계정과 일치하지 않습니다.");
   }
 
-  await deleteAccountData(uid);
+  await deleteAccountData({
+    database: db,
+    authentication: getAuth(),
+    uid,
+  });
   return {deleted: true};
 });
 
@@ -282,6 +348,10 @@ exports.deleteAppleAccount = onCall({region: "asia-northeast3"}, async (request)
     throw new HttpsError("permission-denied", "Apple 계정 연결을 확인할 수 없습니다.");
   }
 
-  await deleteAccountData(uid);
+  await deleteAccountData({
+    database: db,
+    authentication: getAuth(),
+    uid,
+  });
   return {deleted: true};
 });

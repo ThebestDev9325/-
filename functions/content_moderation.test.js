@@ -53,3 +53,14 @@ test("server rejects oversized text and pre-populated counters", () => {
       false,
   );
 });
+
+test("server classifies the 2,000 character sharing boundary", () => {
+  assert.equal(
+      findContentViolation({...validSharedPost(), text: "가".repeat(2000)}),
+      null,
+  );
+  assert.equal(
+      findContentViolation({...validSharedPost(), text: "가".repeat(2001)}),
+      "text_too_long",
+  );
+});

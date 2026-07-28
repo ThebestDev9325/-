@@ -1,48 +1,12 @@
 const {applicationDefault, initializeApp} = require("firebase-admin/app");
 const {
   FieldPath,
-  FieldValue,
   getFirestore,
-  Timestamp,
 } = require("firebase-admin/firestore");
-const {createHash} = require("node:crypto");
+const {migratePost} = require("../reported_by_migration");
 
 initializeApp({credential: applicationDefault()});
 const database = getFirestore();
-
-function reportDocumentId(postId, reporterId) {
-  const reporterHash = createHash("sha256").update(reporterId).digest("hex");
-  return `${postId}_${reporterHash}`;
-}
-
-async function migratePost(postReference) {
-  return database.runTransaction(async (transaction) => {
-    const snapshot = await transaction.get(postReference);
-    if (!snapshot.exists) return 0;
-    const data = snapshot.data();
-    const reporters = Array.isArray(data.reportedBy) ?
-      data.reportedBy.filter((value) => typeof value === "string") :
-      [];
-    const migratedAt = Timestamp.now();
-    for (const reporterId of reporters) {
-      const reportReference = database.collection("contentReports")
-          .doc(reportDocumentId(snapshot.id, reporterId));
-      transaction.set(reportReference, {
-        postId: snapshot.id,
-        ownerId: String(data.ownerId || ""),
-        reporterId,
-        reason: "legacy_unspecified",
-        status: "migrated",
-        createdAt: migratedAt,
-        migratedAt,
-      }, {merge: true});
-    }
-    if ("reportedBy" in data) {
-      transaction.update(postReference, {reportedBy: FieldValue.delete()});
-    }
-    return reporters.length;
-  });
-}
 
 async function main() {
   let lastDocument;
@@ -56,7 +20,7 @@ async function main() {
     const snapshot = await query.get();
     if (snapshot.empty) break;
     for (const document of snapshot.docs) {
-      const count = await migratePost(document.ref);
+      const count = await migratePost(database, document.ref);
       if (count > 0) migratedPosts++;
       migratedReporters += count;
     }

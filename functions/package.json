@@ -4,8 +4,8 @@
   "main": "index.js",
   "engines": {"node": "22"},
   "scripts": {
-    "test": "node --test content_moderation.test.js firestore_rules.test.js callable_integration.test.js",
-    "test:unit": "node --test content_moderation.test.js",
+    "test": "node --test content_moderation.test.js report_monitoring.test.js firestore_rules.test.js callable_integration.test.js",
+    "test:unit": "node --test content_moderation.test.js report_monitoring.test.js",
     "test:rules": "node --test firestore_rules.test.js",
     "test:callable": "node --test callable_integration.test.js"
   },
