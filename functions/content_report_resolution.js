@@ -19,7 +19,11 @@ async function reportGroup(database, reportId) {
       .where("postId", "==", seedData.postId)
       .get();
   const reports = snapshot.docs.filter(
-      (report) => actionableStatuses.has(report.data().status),
+      (report) => {
+        const data = report.data();
+        return data.ownerId === seedData.ownerId &&
+          actionableStatuses.has(data.status);
+      },
   );
   return {
     ownerId: String(seedData.ownerId),
@@ -64,7 +68,9 @@ async function removePostAndPrivateShare(database, group) {
         postReference,
         recordReference,
     );
-    if (post.exists) transaction.delete(postReference);
+    if (post.exists && post.data().ownerId === group.ownerId) {
+      transaction.delete(postReference);
+    }
     if (record.exists) transaction.update(recordReference, {shared: false});
   });
 }

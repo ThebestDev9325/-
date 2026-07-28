@@ -21,6 +21,7 @@ const {
 const {deleteAccountData} = require("./account_deletion");
 const {resolveContentReport} = require("./content_report_resolution");
 const {
+  legacyReportDocumentId,
   migratePost,
   reportDocumentId,
 } = require("./reported_by_migration");
@@ -153,7 +154,7 @@ test(
 
       assert.equal(result.data.published, true);
       assert.equal(post.data().ownerId, clientUserId);
-      assert.deepEqual(post.data().reportedBy, []);
+      assert.equal(Object.hasOwn(post.data(), "reportedBy"), false);
       assert.equal(record.data().shared, true);
     },
 );
@@ -191,6 +192,37 @@ test(
 );
 
 test(
+    "callables reject requests without Firebase authentication",
+    {skip: !hasEmulators},
+    async () => {
+      const app = initializeApp(
+          {projectId, apiKey: "demo-api-key"},
+          `unauthenticated-${Date.now()}`,
+      );
+      const functions = getFunctions(app, "asia-northeast3");
+      connectFunctionsEmulator(functions, "127.0.0.1", 5001);
+
+      try {
+        await assert.rejects(
+            httpsCallable(functions, "publishSharedRecord")({
+              recordId: "unauthenticated-record",
+            }),
+            (error) => error.code === "functions/unauthenticated",
+        );
+        await assert.rejects(
+            httpsCallable(functions, "reportSharedPost")({
+              postId: "unauthenticated-post",
+              reason: "spam",
+            }),
+            (error) => error.code === "functions/unauthenticated",
+        );
+      } finally {
+        await deleteApp(app);
+      }
+    },
+);
+
+test(
     "a connected user cannot overwrite another owner's post",
     {skip: !hasEmulators},
     async () => {
@@ -222,6 +254,34 @@ test(
         await deleteApp(publisher.app);
         await getAdminAuth().deleteUser(publisher.userId);
       }
+    },
+);
+
+test(
+    "publishing canonicalizes a spoofed private owner to the authenticated user",
+    {skip: !hasEmulators},
+    async () => {
+      const recordId = `publish-owner-spoof-${Date.now()}`;
+      const recordReference = database.collection("users").doc(clientUserId)
+          .collection("records").doc(recordId);
+      await recordReference.set({
+        ownerId: "victim-owner",
+        createdAt: Timestamp.now(),
+        category: "직장",
+        moodEmoji: "😤",
+        moodLabel: "많이 화남",
+        text: "다른 사용자를 작성자로 위조하려는 기록입니다.",
+        storyId: recordId,
+        shared: false,
+      });
+
+      const result = await publishSharedRecord({recordId});
+      const post = await database.collection("sharedPosts").doc(recordId).get();
+      const record = await recordReference.get();
+
+      assert.equal(result.data.published, true);
+      assert.equal(post.data().ownerId, clientUserId);
+      assert.equal(record.data().shared, true);
     },
 );
 
@@ -309,6 +369,68 @@ test(
       assert.ok(reports.every((report) => report.data().resolvedAt));
       assert.equal(owner.disabled, true);
       await authentication.deleteUser(ownerId);
+    },
+);
+
+test(
+    "moderation does not consume reports or posts from a reused post id",
+    {skip: !hasEmulators},
+    async () => {
+      const reportedOwnerId = `reported-owner-${Date.now()}`;
+      const currentOwnerId = `current-owner-${Date.now()}`;
+      const postId = `reused-post-${Date.now()}`;
+      const authentication = getAdminAuth();
+      await authentication.createUser({uid: reportedOwnerId});
+      await createPost(postId, currentOwnerId);
+      await database.collection("users").doc(currentOwnerId)
+          .collection("records").doc(postId).set({shared: true});
+      const reportedOwnerReport = database.collection("contentReports")
+          .doc(`${postId}-reported-owner`);
+      const currentOwnerReport = database.collection("contentReports")
+          .doc(`${postId}-current-owner`);
+      await Promise.all([
+        reportedOwnerReport.set({
+          postId,
+          ownerId: reportedOwnerId,
+          reporterId: "first-reporter",
+          status: "pending",
+          deadlineAt: Timestamp.now(),
+        }),
+        currentOwnerReport.set({
+          postId,
+          ownerId: currentOwnerId,
+          reporterId: "second-reporter",
+          status: "pending",
+          deadlineAt: Timestamp.now(),
+        }),
+      ]);
+
+      const result = await resolveContentReport({
+        database,
+        authentication,
+        reportId: reportedOwnerReport.id,
+        action: "remove-and-suspend",
+        actionedBy: "moderator@example.com",
+      });
+      const [oldReport, currentReport, currentPost, currentRecord] =
+          await Promise.all([
+            reportedOwnerReport.get(),
+            currentOwnerReport.get(),
+            database.collection("sharedPosts").doc(postId).get(),
+            database.collection("users").doc(currentOwnerId)
+                .collection("records").doc(postId).get(),
+          ]);
+
+      assert.equal(result.resolvedCount, 1);
+      assert.equal(oldReport.data().status, "resolved");
+      assert.equal(currentReport.data().status, "pending");
+      assert.equal(currentPost.data().ownerId, currentOwnerId);
+      assert.equal(currentRecord.data().shared, true);
+      assert.equal(
+          (await authentication.getUser(reportedOwnerId)).disabled,
+          true,
+      );
+      await authentication.deleteUser(reportedOwnerId);
     },
 );
 
@@ -451,11 +573,37 @@ test(
       assert.equal(reports.size, 1);
       assert.equal(reports.docs[0].data().reason, "harassment");
       assert.equal(reports.docs[0].data().status, "pending");
+      const publicPost = await database.collection("sharedPosts")
+          .doc(postId).get();
+      assert.equal(Object.hasOwn(publicPost.data(), "reportedBy"), false);
+    },
+);
+
+test(
+    "the same reporter can report a reused post id owned by another user",
+    {skip: !hasEmulators},
+    async () => {
+      const postId = `callable-reused-${Date.now()}`;
+      await createPost(postId, "first-owner");
+      await reportSharedPost({postId, reason: "harassment"});
+      await database.collection("sharedPosts").doc(postId).delete();
+      await createPost(postId, "second-owner");
+
+      const second = await reportSharedPost({postId, reason: "spam"});
+      const reports = await database.collection("contentReports")
+          .where("postId", "==", postId)
+          .get();
+      const currentPost = await database.collection("sharedPosts")
+          .doc(postId).get();
+
+      assert.equal(second.data.alreadyReported, false);
+      assert.equal(second.data.reportCount, 1);
+      assert.equal(reports.size, 2);
       assert.deepEqual(
-          (await database.collection("sharedPosts").doc(postId).get())
-              .data().reportedBy,
-          [clientUserId],
+          new Set(reports.docs.map((report) => report.data().ownerId)),
+          new Set(["first-owner", "second-owner"]),
       );
+      assert.equal(currentPost.data().reportCount, 1);
     },
 );
 
@@ -498,6 +646,9 @@ test(
       assert.equal(reports.size, 1);
       assert.equal(reports.docs[0].data().status, "pending");
       assert.ok(reports.docs[0].data().deadlineAt);
+      const publicPost = await database.collection("sharedPosts")
+          .doc(postId).get();
+      assert.deepEqual(publicPost.data().reportedBy, []);
     },
 );
 
@@ -629,7 +780,7 @@ test(
         reportCount: 2,
       });
       const existingReference = database.collection("contentReports").doc(
-          reportDocumentId(postId, existingReporter),
+          legacyReportDocumentId(postId, existingReporter),
       );
       await existingReference.set({
         postId,
@@ -643,8 +794,9 @@ test(
       const migratedCount = await migratePost(database, postReference);
       const existing = await existingReference.get();
       const migrated = await database.collection("contentReports").doc(
-          reportDocumentId(postId, missingReporter),
+          reportDocumentId(postId, "owner", missingReporter),
       ).get();
+      const migratedPost = await postReference.get();
 
       assert.equal(migratedCount, 1);
       assert.equal(existing.data().reason, "harassment");
@@ -652,5 +804,6 @@ test(
       assert.equal(migrated.data().reason, "legacy_unspecified");
       assert.equal(migrated.data().status, "pending");
       assert.ok(migrated.data().deadlineAt);
+      assert.deepEqual(migratedPost.data().reportedBy, []);
     },
 );

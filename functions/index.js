@@ -3,9 +3,13 @@ const logger = require("firebase-functions/logger");
 const {initializeApp} = require("firebase-admin/app");
 const {getAuth} = require("firebase-admin/auth");
 const {getFirestore, Timestamp} = require("firebase-admin/firestore");
-const {createHash} = require("node:crypto");
 const {deleteAccountData} = require("./account_deletion");
 const {isValidSharedPost} = require("./content_moderation");
+const {
+  legacyReportDocumentId,
+  reportDocumentId,
+  reporterHash,
+} = require("./content_report_identity");
 
 initializeApp();
 const db = getFirestore();
@@ -29,15 +33,6 @@ function validDocumentId(value) {
     value.length > 0 &&
     value.length <= 128 &&
     !value.includes("/");
-}
-
-function reportDocumentId(postId, reporterId) {
-  const reporterHash = createHash("sha256").update(reporterId).digest("hex");
-  return `${postId}_${reporterHash}`;
-}
-
-function reporterHash(reporterId) {
-  return createHash("sha256").update(reporterId).digest("hex");
 }
 
 async function requireConnectedAccount(request) {
@@ -130,8 +125,6 @@ exports.publishSharedRecord = onCall(
           reactions: [0, 0, 0],
           reactedBy: [],
           reportCount: 0,
-          // Kept during the expand phase so the previous callable can roll back.
-          reportedBy: [],
         };
         if (!isValidSharedPost(post)) {
           throw new HttpsError(
@@ -161,8 +154,6 @@ exports.reportSharedPost = onCall({region: "asia-northeast3"}, async (request) =
   }
   const uid = request.auth.uid;
   const postRef = db.collection("sharedPosts").doc(postId);
-  const reportRef = db.collection("contentReports")
-      .doc(reportDocumentId(postId, uid));
   const rateLimitRef = db.collection("reportRateLimits").doc(uid);
   const now = Timestamp.now();
   const result = await db.runTransaction(async (transaction) => {
@@ -176,11 +167,27 @@ exports.reportSharedPost = onCall({region: "asia-northeast3"}, async (request) =
       };
     }
     const data = snapshot.data();
-    if (data.ownerId === uid) {
+    const ownerId = data.ownerId;
+    if (!validDocumentId(ownerId)) {
+      throw new HttpsError(
+          "failed-precondition",
+          "신고 대상 사연의 소유자를 확인할 수 없습니다.",
+      );
+    }
+    if (ownerId === uid) {
       throw new HttpsError("failed-precondition", "내 사연은 신고할 수 없습니다.");
     }
-    const existingReport = await transaction.get(reportRef);
-    if (existingReport.exists) {
+    const reportRef = db.collection("contentReports")
+        .doc(reportDocumentId(postId, ownerId, uid));
+    const legacyReportRef = db.collection("contentReports")
+        .doc(legacyReportDocumentId(postId, uid));
+    const [existingReport, legacyReport] = await transaction.getAll(
+        reportRef,
+        legacyReportRef,
+    );
+    const hasMatchingLegacyReport = legacyReport.exists &&
+      legacyReport.data().ownerId === ownerId;
+    if (existingReport.exists || hasMatchingLegacyReport) {
       return {
         reportCount: Number(data.reportCount) || 0,
         removed: false,
@@ -194,7 +201,7 @@ exports.reportSharedPost = onCall({region: "asia-northeast3"}, async (request) =
     if (legacyReporters.includes(uid)) {
       transaction.create(reportRef, {
         postId,
-        ownerId: String(data.ownerId),
+        ownerId,
         reporterId: uid,
         reason: "legacy_unspecified",
         status: "pending",
@@ -208,6 +215,9 @@ exports.reportSharedPost = onCall({region: "asia-northeast3"}, async (request) =
           createdAt: data.createdAt || now,
         },
         migratedAt: now,
+      });
+      transaction.update(postRef, {
+        reportedBy: legacyReporters.filter((reporterId) => reporterId !== uid),
       });
       return {
         reportCount: Number(data.reportCount) || legacyReporters.length,
@@ -232,7 +242,7 @@ exports.reportSharedPost = onCall({region: "asia-northeast3"}, async (request) =
     const reportCount = (Number(data.reportCount) || 0) + 1;
     transaction.create(reportRef, {
       postId,
-      ownerId: String(data.ownerId),
+      ownerId,
       reporterId: uid,
       reason,
       status: "pending",
@@ -253,7 +263,6 @@ exports.reportSharedPost = onCall({region: "asia-northeast3"}, async (request) =
     });
     transaction.update(postRef, {
       reportCount,
-      reportedBy: [...legacyReporters, uid],
     });
     return {
       reportCount,

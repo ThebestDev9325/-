@@ -675,7 +675,7 @@ class _AppShellState extends State<AppShell> {
     } catch (_) {
       _showMessage(
         persisted
-            ? '게시물을 숨겼습니다. 신고는 연결되면 다시 전송됩니다.'
+            ? '게시물을 숨겼습니다. 앱을 다시 열면 신고를 재전송합니다.'
             : '게시물은 숨겼지만 신고 정보를 저장하지 못했습니다.',
       );
     }

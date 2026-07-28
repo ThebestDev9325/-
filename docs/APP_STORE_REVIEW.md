@@ -32,12 +32,11 @@ node functions/scripts/resolve_content_report.js REPORT_ID reject
 
 ### 호환 배포 원칙
 
-- 확장 단계에서는 `reportedBy`를 유지하면서 비공개 `contentReports`를 함께
-  기록한다. 마이그레이션도 `reportedBy`를 삭제하지 않는다.
-- 이 단계에서 Functions를 롤백해야 하면 `reportedBy`와
-  `contentReports`를 모두 이해하는 이 커밋으로 롤백한다.
-- 모든 활성 클라이언트와 롤백 기간이 지난 뒤 별도 축소 배포에서
-  `reportedBy` 쓰기와 기존 필드를 제거한다.
+- 비공개 `contentReports`가 신고 중복과 운영 상태의 기준이다.
+- 마이그레이션은 기존 `reportedBy`를 private 신고 레코드로 옮긴 뒤 공개
+  게시물의 신고자 식별자 배열을 비운다.
+- 구버전 앱의 재시도도 `contentReports` 문서 ID로 중복 제거하므로
+  공개 게시물에 신고자 UID를 다시 기록하지 않는다.
 - Firestore의 직접 게시 차단 규칙은 App Store 재심사 전에 운영에 배포한다.
   구버전 앱의 직접 공유는 새 앱 배포 전까지 일시 중단될 수 있다.
 
@@ -53,7 +52,7 @@ PATH="/opt/homebrew/opt/openjdk@21/bin:$PATH" \
 ```
 
 검증 결과: Flutter 테스트 68개, Functions/Firestore/Auth Emulator 테스트
-37개, iOS Simulator 빌드, iPhone 17 Pro Max 및 iPad Air 11-inch
+41개, iOS Simulator 빌드, iPhone 17 Pro Max 및 iPad Air 11-inch
 시뮬레이터 렌더링을 통과했다.
 
 ## 심사 노트
