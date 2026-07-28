@@ -623,18 +623,8 @@ class _AppShellState extends State<AppShell> {
     CommunityReportReason reason,
   ) async {
     setState(() {
-      _communitySafetyState = CommunitySafetyState(
-        hiddenPostIds: {..._communitySafetyState.hiddenPostIds, post.id},
-        blockedOwnerIds: _communitySafetyState.blockedOwnerIds,
-      );
       sharedPosts.removeWhere((item) => item.id == post.id);
     });
-
-    try {
-      await _communitySafetyStore.hidePost(currentUserId, post.id);
-    } catch (_) {
-      // The post is still removed from the current feed.
-    }
 
     try {
       await AppFirebaseService.instance.report(
@@ -642,9 +632,24 @@ class _AppShellState extends State<AppShell> {
         reason,
         ownerId: post.ownerId,
       );
+      if (!mounted) return;
+      setState(() {
+        _communitySafetyState = CommunitySafetyState(
+          hiddenPostIds: {..._communitySafetyState.hiddenPostIds, post.id},
+          blockedOwnerIds: _communitySafetyState.blockedOwnerIds,
+        );
+      });
+      try {
+        await _communitySafetyStore.hidePost(currentUserId, post.id);
+      } catch (_) {
+        // The current feed remains hidden after the server accepted the report.
+      }
       _showMessage('신고가 접수되었고 게시물을 피드에서 숨겼습니다.');
     } catch (_) {
-      _showMessage('게시물은 숨겼지만 신고를 접수하지 못했습니다. 다시 시도해주세요.');
+      if (!mounted) return;
+      await _subscribeToSharedPosts();
+      if (!mounted) return;
+      _showMessage('신고를 접수하지 못했습니다. 다시 시도해주세요.');
     }
   }
 

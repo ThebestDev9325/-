@@ -611,6 +611,33 @@ test(
 );
 
 test(
+    "a stale owner id cannot report a replacement post",
+    {skip: !hasEmulators},
+    async () => {
+      const postId = `callable-stale-owner-${Date.now()}`;
+      await createPost(postId, "original-owner");
+      await database.collection("sharedPosts").doc(postId).delete();
+      await createPost(postId, "replacement-owner");
+
+      const result = await reportSharedPost({
+        postId,
+        ownerId: "original-owner",
+        reason: "spam",
+      });
+      const reports = await database.collection("contentReports")
+          .where("postId", "==", postId)
+          .get();
+      const replacement = await database.collection("sharedPosts")
+          .doc(postId).get();
+
+      assert.equal(result.data.removed, true);
+      assert.equal(result.data.alreadyReported, false);
+      assert.equal(reports.size, 0);
+      assert.equal(replacement.data().reportCount, 0);
+    },
+);
+
+test(
     "the same reporter can report a reused post id owned by another user",
     {skip: !hasEmulators},
     async () => {
