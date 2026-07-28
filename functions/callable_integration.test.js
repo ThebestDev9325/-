@@ -360,11 +360,15 @@ test(
       const post = await database.collection("sharedPosts").doc(postId).get();
       const record = await database.collection("users").doc(ownerId)
           .collection("records").doc(postId).get();
+      const suspension = await database.collection("moderationSuspensions")
+          .doc(ownerId).get();
       const owner = await authentication.getUser(ownerId);
 
       assert.equal(result.resolvedCount, 2);
       assert.equal(post.exists, false);
       assert.equal(record.data().shared, false);
+      assert.equal(suspension.data().status, "suspended");
+      assert.equal(suspension.data().postId, postId);
       assert.ok(reports.every((report) => report.data().status === "resolved"));
       assert.ok(reports.every((report) => report.data().resolvedAt));
       assert.equal(owner.disabled, true);
@@ -474,6 +478,8 @@ test(
       const reports = await Promise.all(
           reportReferences.map((reference) => reference.get()),
       );
+      const suspension = await database.collection("moderationSuspensions")
+          .doc(ownerId).get();
 
       assert.ok(
           reports.every(
@@ -481,6 +487,7 @@ test(
           ),
       );
       assert.ok(reports.every((report) => report.data().suspensionError));
+      assert.equal(suspension.data().status, "suspended");
     },
 );
 
@@ -712,6 +719,59 @@ test(
           new Set(["first-owner", "second-owner"]),
       );
       assert.equal(currentPost.data().reportCount, 1);
+    },
+);
+
+test(
+    "suspended users cannot publish or report with an existing session",
+    {skip: !hasEmulators},
+    async () => {
+      const publisher = await createConnectedPublisher("suspended");
+      const reporter = await createAnonymousReporter("suspended");
+      const recordId = `suspended-publish-${Date.now()}`;
+      const postId = `suspended-report-${Date.now()}`;
+      await database.collection("users").doc(publisher.userId)
+          .collection("records").doc(recordId).set({
+            ownerId: publisher.userId,
+            createdAt: Timestamp.now(),
+            category: "직장",
+            moodEmoji: "😤",
+            moodLabel: "많이 화남",
+            text: "오늘 회사에서 속상한 일이 있었어요.",
+            storyId: recordId,
+            shared: false,
+          });
+      await createPost(postId);
+      await Promise.all([
+        database.collection("moderationSuspensions")
+            .doc(publisher.userId).set({status: "suspended"}),
+        database.collection("moderationSuspensions")
+            .doc(reporter.userId).set({status: "suspended"}),
+      ]);
+
+      try {
+        await assert.rejects(
+            publisher.publish({recordId}),
+            (error) => error.code === "functions/permission-denied",
+        );
+        await assert.rejects(
+            reporter.report({postId, reason: "spam"}),
+            (error) => error.code === "functions/permission-denied",
+        );
+        const [post, record] = await Promise.all([
+          database.collection("sharedPosts").doc(postId).get(),
+          database.collection("users").doc(publisher.userId)
+              .collection("records").doc(recordId).get(),
+        ]);
+        assert.equal(post.data().reportCount, 0);
+        assert.equal(record.data().shared, false);
+      } finally {
+        await Promise.all([
+          deleteApp(publisher.app),
+          deleteApp(reporter.app),
+          getAdminAuth().deleteUser(publisher.userId),
+        ]);
+      }
     },
 );
 

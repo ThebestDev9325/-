@@ -33,6 +33,9 @@ node functions/scripts/resolve_content_report.js REPORT_ID reject
 ### 호환 배포 원칙
 
 - 비공개 `contentReports`가 신고 중복과 운영 상태의 기준이다.
+- 운영자 정지는 비공개 `moderationSuspensions` marker를 게시물 제거와
+  원자적으로 기록한다. Rules와 callable이 marker를 확인하므로 기존 ID
+  token이 남아 있어도 사용자 write와 재게시가 즉시 차단된다.
 - 새 앱은 신고마다 128-bit `requestId`와 신고 당시 `ownerId`를 callable에
   전달한다. 서버는 비공개 `contentReportRequests`에 멱등 키를 기록하므로
   응답 유실 뒤 계정 UID가 바뀌어도 같은 신고를 다시 집계하지 않으며,
@@ -56,7 +59,7 @@ PATH="/opt/homebrew/opt/openjdk@21/bin:$PATH" \
 ```
 
 검증 결과: Flutter 테스트 69개, Functions/Firestore/Auth Emulator 테스트
-45개, iOS Simulator 빌드, iPhone 17 Pro Max 및 iPad Air 11-inch
+48개, iOS Simulator 빌드, iPhone 17 Pro Max 및 iPad Air 11-inch
 시뮬레이터 렌더링을 통과했다.
 
 ## 심사 노트

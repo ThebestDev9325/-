@@ -63,6 +63,8 @@ async function removePostAndPrivateShare(database, group) {
   const postReference = database.collection("sharedPosts").doc(group.postId);
   const recordReference = database.collection("users").doc(group.ownerId)
       .collection("records").doc(group.postId);
+  const suspensionReference = database.collection("moderationSuspensions")
+      .doc(group.ownerId);
   await database.runTransaction(async (transaction) => {
     const [post, record] = await transaction.getAll(
         postReference,
@@ -72,6 +74,12 @@ async function removePostAndPrivateShare(database, group) {
       transaction.delete(postReference);
     }
     if (record.exists) transaction.update(recordReference, {shared: false});
+    transaction.set(suspensionReference, {
+      status: "suspended",
+      reason: "content_report_violation",
+      postId: group.postId,
+      suspendedAt: Timestamp.now(),
+    }, {merge: true});
   });
 }
 

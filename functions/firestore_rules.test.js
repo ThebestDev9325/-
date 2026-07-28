@@ -97,6 +97,43 @@ test("a user can add exactly one reaction only once", async () => {
   );
 });
 
+test("a moderation suspension immediately blocks every client write", async () => {
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(
+        doc(context.firestore(), "sharedPosts/post-1"),
+        validPost("owner"),
+    );
+    await setDoc(
+        doc(context.firestore(), "moderationSuspensions/viewer"),
+        {status: "suspended"},
+    );
+  });
+  const firestore = environment.authenticatedContext("viewer").firestore();
+  await assertSucceeds(getDoc(doc(firestore, "sharedPosts/post-1")));
+  await assertFails(
+      updateDoc(
+          doc(firestore, "sharedPosts/post-1"),
+          {reactions: [1, 0, 0], reactedBy: ["viewer"]},
+      ),
+  );
+  await assertFails(
+      setDoc(
+          doc(firestore, "users/viewer/records/record-1"),
+          {ownerId: "viewer"},
+      ),
+  );
+  await assertFails(
+      setDoc(doc(firestore, "storyFeedback/story-1"), {
+        storyId: "story-1",
+        likes: 1,
+        unsure: 0,
+        dislikes: 0,
+        total: 1,
+        updatedAt: Timestamp.now(),
+      }),
+  );
+});
+
 test("content reports are private to server operators", async () => {
   await environment.withSecurityRulesDisabled(async (context) => {
     await setDoc(doc(context.firestore(), "contentReports/report-1"), {
@@ -107,6 +144,24 @@ test("content reports are private to server operators", async () => {
   await assertFails(getDoc(doc(firestore, "contentReports/report-1")));
   await assertFails(
       setDoc(doc(firestore, "contentReports/report-2"), {status: "pending"}),
+  );
+});
+
+test("moderation suspension markers are private to server operators", async () => {
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), "moderationSuspensions/viewer"), {
+      status: "suspended",
+    });
+  });
+  const firestore = environment.authenticatedContext("viewer").firestore();
+  await assertFails(
+      getDoc(doc(firestore, "moderationSuspensions/viewer")),
+  );
+  await assertFails(
+      setDoc(
+          doc(firestore, "moderationSuspensions/other"),
+          {status: "suspended"},
+      ),
   );
 });
 

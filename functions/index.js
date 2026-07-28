@@ -95,11 +95,19 @@ exports.publishSharedRecord = onCall(
       const recordRef = db.collection("users").doc(uid)
           .collection("records").doc(recordId);
       const postRef = db.collection("sharedPosts").doc(recordId);
+      const suspensionRef = db.collection("moderationSuspensions").doc(uid);
       await db.runTransaction(async (transaction) => {
-        const [record, existingPost] = await transaction.getAll(
+        const [record, existingPost, suspension] = await transaction.getAll(
             recordRef,
             postRef,
+            suspensionRef,
         );
+        if (suspension.exists) {
+          throw new HttpsError(
+              "permission-denied",
+              "정지된 계정은 사연을 공유할 수 없습니다.",
+          );
+        }
         if (!record.exists) {
           throw new HttpsError("not-found", "공유할 마음 기록이 없습니다.");
         }
@@ -171,6 +179,7 @@ exports.reportSharedPost = onCall({region: "asia-northeast3"}, async (request) =
   }
   const uid = request.auth.uid;
   const postRef = db.collection("sharedPosts").doc(postId);
+  const suspensionRef = db.collection("moderationSuspensions").doc(uid);
   const rateLimitRef = db.collection("reportRateLimits").doc(uid);
   const requestRef = requestId == null ?
     null :
@@ -178,7 +187,16 @@ exports.reportSharedPost = onCall({region: "asia-northeast3"}, async (request) =
         .doc(reportRequestDocumentId(requestId));
   const now = Timestamp.now();
   const result = await db.runTransaction(async (transaction) => {
-    const snapshot = await transaction.get(postRef);
+    const [snapshot, suspension] = await transaction.getAll(
+        postRef,
+        suspensionRef,
+    );
+    if (suspension.exists) {
+      throw new HttpsError(
+          "permission-denied",
+          "정지된 계정은 신고할 수 없습니다.",
+      );
+    }
     if (!snapshot.exists) {
       return {
         reportCount: 5,
