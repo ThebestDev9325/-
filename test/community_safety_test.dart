@@ -113,6 +113,30 @@ void main() {
     expect((await store.load('linked')).toJson(), migrated.toJson());
   });
 
+  test('대기 신고의 멱등 키를 보존하고 구버전 저장 형식을 읽는다', () {
+    const report = PendingCommunityReport(
+      postId: 'post-idempotent',
+      ownerId: 'owner-idempotent',
+      requestId: '0123456789abcdef0123456789abcdef',
+      reason: CommunityReportReason.spam,
+    );
+
+    expect(PendingCommunityReport.fromJson(report.toJson()), report);
+    expect(
+      PendingCommunityReport.fromJson({
+        'postId': 'legacy-post',
+        'ownerId': 'legacy-owner',
+        'reason': 'spam',
+      }).requestId,
+      isNull,
+    );
+    expect(createCommunityReportRequestId(), hasLength(32));
+    expect(
+      createCommunityReportRequestId(),
+      matches(RegExp(r'^[0-9a-f]{32}$')),
+    );
+  });
+
   test('로그인 직후 종료돼도 다음 실행에서 익명 상태 이전을 재개한다', () async {
     SharedPreferences.setMockInitialValues({});
     final firstSession = SharedPreferencesCommunitySafetyStore();

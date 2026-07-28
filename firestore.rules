@@ -71,6 +71,10 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    match /contentReportRequests/{requestId} {
+      allow read, write: if false;
+    }
+
     match /reportRateLimits/{userId} {
       allow read, write: if false;
     }

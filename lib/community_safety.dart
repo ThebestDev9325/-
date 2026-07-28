@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:unorm_dart/unorm_dart.dart' as unicode;
 
 enum CommunityContentViolation {
@@ -138,16 +140,19 @@ class PendingCommunityReport {
   const PendingCommunityReport({
     required this.postId,
     required this.ownerId,
+    this.requestId,
     required this.reason,
   });
 
   final String postId;
   final String ownerId;
+  final String? requestId;
   final CommunityReportReason reason;
 
   Map<String, dynamic> toJson() => {
         'postId': postId,
         'ownerId': ownerId,
+        if (requestId != null) 'requestId': requestId,
         'reason': reason.wireName,
       };
 
@@ -155,6 +160,7 @@ class PendingCommunityReport {
     return PendingCommunityReport(
       postId: json['postId'] as String,
       ownerId: json['ownerId'] as String,
+      requestId: json['requestId'] as String?,
       reason: CommunityReportReason.fromWireName(json['reason'] as String),
     );
   }
@@ -164,11 +170,22 @@ class PendingCommunityReport {
     return other is PendingCommunityReport &&
         other.postId == postId &&
         other.ownerId == ownerId &&
+        other.requestId == requestId &&
         other.reason == reason;
   }
 
   @override
-  int get hashCode => Object.hash(postId, ownerId, reason);
+  int get hashCode => Object.hash(postId, ownerId, requestId, reason);
+}
+
+final Random _communityReportRandom = Random.secure();
+
+String createCommunityReportRequestId() {
+  return List.generate(
+    16,
+    (_) =>
+        _communityReportRandom.nextInt(256).toRadixString(16).padLeft(2, '0'),
+  ).join();
 }
 
 class CommunitySafetyState {

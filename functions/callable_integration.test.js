@@ -580,6 +580,114 @@ test(
 );
 
 test(
+    "a persisted request stays idempotent after the reporter account changes",
+    {skip: !hasEmulators},
+    async () => {
+      const postId = `callable-request-replay-${Date.now()}`;
+      const ownerId = "request-replay-owner";
+      const requestId = "0123456789abcdef0123456789abcdef";
+      const firstReporter = await createAnonymousReporter("request-first");
+      const linkedReporter = await createAnonymousReporter("request-linked");
+      await createPost(postId, ownerId);
+
+      try {
+        const first = await firstReporter.report({
+          postId,
+          ownerId,
+          requestId,
+          reason: "harassment",
+        });
+        const replay = await linkedReporter.report({
+          postId,
+          ownerId,
+          requestId,
+          reason: "harassment",
+        });
+        const reports = await database.collection("contentReports")
+            .where("postId", "==", postId)
+            .get();
+        const publicPost = await database.collection("sharedPosts")
+            .doc(postId).get();
+
+        assert.equal(first.data.reportCount, 1);
+        assert.equal(replay.data.alreadyReported, true);
+        assert.equal(reports.size, 1);
+        assert.equal(publicPost.data().reportCount, 1);
+      } finally {
+        await Promise.all([
+          deleteApp(firstReporter.app),
+          deleteApp(linkedReporter.app),
+        ]);
+      }
+    },
+);
+
+test(
+    "a persisted request cannot report a replacement post owner",
+    {skip: !hasEmulators},
+    async () => {
+      const postId = `callable-stale-owner-${Date.now()}`;
+      const requestId = "fedcba9876543210fedcba9876543210";
+      await createPost(postId, "original-owner");
+      await database.collection("sharedPosts").doc(postId).delete();
+      await createPost(postId, "replacement-owner");
+
+      const result = await reportSharedPost({
+        postId,
+        ownerId: "original-owner",
+        requestId,
+        reason: "spam",
+      });
+      const reports = await database.collection("contentReports")
+          .where("postId", "==", postId)
+          .get();
+      const replacement = await database.collection("sharedPosts")
+          .doc(postId).get();
+
+      assert.equal(result.data.removed, true);
+      assert.equal(result.data.alreadyReported, false);
+      assert.equal(reports.size, 0);
+      assert.equal(replacement.data().reportCount, 0);
+    },
+);
+
+test(
+    "a request id cannot suppress a different report",
+    {skip: !hasEmulators},
+    async () => {
+      const prefix = `callable-request-conflict-${Date.now()}`;
+      const requestId = "00112233445566778899aabbccddeeff";
+      await createPost(`${prefix}-first`, "first-owner");
+      await createPost(`${prefix}-second`, "second-owner");
+      await reportSharedPost({
+        postId: `${prefix}-first`,
+        ownerId: "first-owner",
+        requestId,
+        reason: "harassment",
+      });
+
+      await assert.rejects(
+          reportSharedPost({
+            postId: `${prefix}-second`,
+            ownerId: "second-owner",
+            requestId,
+            reason: "spam",
+          }),
+          (error) => error.code === "functions/already-exists",
+      );
+      const secondPost = await database.collection("sharedPosts")
+          .doc(`${prefix}-second`)
+          .get();
+      const secondReports = await database.collection("contentReports")
+          .where("postId", "==", `${prefix}-second`)
+          .get();
+
+      assert.equal(secondPost.data().reportCount, 0);
+      assert.equal(secondReports.size, 0);
+    },
+);
+
+test(
     "the same reporter can report a reused post id owned by another user",
     {skip: !hasEmulators},
     async () => {
@@ -730,6 +838,11 @@ test(
           .set({ownerId: uid, reporterId: "other"});
       await database.collection("contentReports").doc("delete-submitted-report")
           .set({ownerId: "other", reporterId: uid});
+      await database.collection("contentReportRequests").doc("delete-owned")
+          .set({ownerId: uid, reporterId: "other"});
+      await database.collection("contentReportRequests")
+          .doc("delete-submitted")
+          .set({ownerId: "other", reporterId: uid});
       await database.collection("reportRateLimits").doc(uid).set({count: 1});
       await createPost("delete-observed", "other-owner");
       await database.collection("sharedPosts").doc("delete-observed").update({
@@ -747,6 +860,9 @@ test(
         database.collection("contentReports").doc("delete-owned-report").get(),
         database.collection("contentReports")
             .doc("delete-submitted-report").get(),
+        database.collection("contentReportRequests").doc("delete-owned").get(),
+        database.collection("contentReportRequests")
+            .doc("delete-submitted").get(),
         database.collection("reportRateLimits").doc(uid).get(),
         database.collection("sharedPosts").doc("delete-observed").get(),
       ]);

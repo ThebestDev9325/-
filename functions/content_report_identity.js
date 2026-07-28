@@ -16,8 +16,13 @@ function reporterHash(reporterId) {
   return hashIdentifier(reporterId);
 }
 
+function reportRequestDocumentId(requestId) {
+  return hashIdentifier(requestId);
+}
+
 module.exports = {
   legacyReportDocumentId,
   reportDocumentId,
+  reportRequestDocumentId,
   reporterHash,
 };

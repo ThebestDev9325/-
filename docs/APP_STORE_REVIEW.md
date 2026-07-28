@@ -33,6 +33,10 @@ node functions/scripts/resolve_content_report.js REPORT_ID reject
 ### 호환 배포 원칙
 
 - 비공개 `contentReports`가 신고 중복과 운영 상태의 기준이다.
+- 새 앱은 신고마다 128-bit `requestId`와 신고 당시 `ownerId`를 callable에
+  전달한다. 서버는 비공개 `contentReportRequests`에 멱등 키를 기록하므로
+  응답 유실 뒤 계정 UID가 바뀌어도 같은 신고를 다시 집계하지 않으며,
+  삭제된 post ID가 다른 소유자에게 재사용되면 대기 신고를 폐기한다.
 - 마이그레이션은 기존 `reportedBy`를 private 신고 레코드로 옮긴 뒤 공개
   게시물의 신고자 식별자 배열을 비운다.
 - 구버전 앱의 재시도도 `contentReports` 문서 ID로 중복 제거하므로
@@ -51,8 +55,8 @@ PATH="/opt/homebrew/opt/openjdk@21/bin:$PATH" \
   "npm --prefix functions test"
 ```
 
-검증 결과: Flutter 테스트 68개, Functions/Firestore/Auth Emulator 테스트
-41개, iOS Simulator 빌드, iPhone 17 Pro Max 및 iPad Air 11-inch
+검증 결과: Flutter 테스트 69개, Functions/Firestore/Auth Emulator 테스트
+45개, iOS Simulator 빌드, iPhone 17 Pro Max 및 iPad Air 11-inch
 시뮬레이터 렌더링을 통과했다.
 
 ## 심사 노트

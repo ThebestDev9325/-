@@ -629,6 +629,7 @@ class _AppShellState extends State<AppShell> {
     final pending = PendingCommunityReport(
       postId: post.id,
       ownerId: post.ownerId,
+      requestId: createCommunityReportRequestId(),
       reason: reason,
     );
     setState(() {
@@ -653,7 +654,12 @@ class _AppShellState extends State<AppShell> {
     }
 
     try {
-      await AppFirebaseService.instance.report(post.id, reason);
+      await AppFirebaseService.instance.report(
+        post.id,
+        reason,
+        ownerId: pending.ownerId,
+        requestId: pending.requestId,
+      );
       if (persisted) {
         try {
           await _communitySafetyStore.completeReport(currentUserId, post.id);
@@ -684,7 +690,12 @@ class _AppShellState extends State<AppShell> {
   Future<void> _retryPendingReports() async {
     for (final report in [..._communitySafetyState.pendingReports]) {
       try {
-        await AppFirebaseService.instance.report(report.postId, report.reason);
+        await AppFirebaseService.instance.report(
+          report.postId,
+          report.reason,
+          ownerId: report.ownerId,
+          requestId: report.requestId,
+        );
         await _communitySafetyStore.completeReport(
           currentUserId,
           report.postId,
