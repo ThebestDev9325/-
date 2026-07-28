@@ -38,7 +38,6 @@ class SharedPreferencesCommunitySafetyStore implements CommunitySafetyStore {
       return CommunitySafetyState(
         hiddenPostIds: {...state.hiddenPostIds, postId},
         blockedOwnerIds: state.blockedOwnerIds,
-        pendingReports: state.pendingReports,
       );
     });
   }
@@ -49,38 +48,6 @@ class SharedPreferencesCommunitySafetyStore implements CommunitySafetyStore {
       return CommunitySafetyState(
         hiddenPostIds: state.hiddenPostIds,
         blockedOwnerIds: {...state.blockedOwnerIds, ownerId},
-        pendingReports: state.pendingReports,
-      );
-    });
-  }
-
-  @override
-  Future<void> enqueueReport(
-    String userId,
-    PendingCommunityReport report,
-  ) {
-    return _mutate(userId, (state) {
-      final pending = [
-        ...state.pendingReports.where((item) => item.postId != report.postId),
-        report,
-      ];
-      return CommunitySafetyState(
-        hiddenPostIds: {...state.hiddenPostIds, report.postId},
-        blockedOwnerIds: state.blockedOwnerIds,
-        pendingReports: pending,
-      );
-    });
-  }
-
-  @override
-  Future<void> completeReport(String userId, String postId) {
-    return _mutate(userId, (state) {
-      return CommunitySafetyState(
-        hiddenPostIds: state.hiddenPostIds,
-        blockedOwnerIds: state.blockedOwnerIds,
-        pendingReports: state.pendingReports
-            .where((item) => item.postId != postId)
-            .toList(),
       );
     });
   }
@@ -147,14 +114,9 @@ class SharedPreferencesCommunitySafetyStore implements CommunitySafetyStore {
   ) async {
     final source = await _loadNow(fromUserId);
     final target = await _loadNow(toUserId);
-    final reportsByPostId = {
-      for (final report in target.pendingReports) report.postId: report,
-      for (final report in source.pendingReports) report.postId: report,
-    };
     final merged = CommunitySafetyState(
       hiddenPostIds: {...target.hiddenPostIds, ...source.hiddenPostIds},
       blockedOwnerIds: {...target.blockedOwnerIds, ...source.blockedOwnerIds},
-      pendingReports: reportsByPostId.values.toList(),
     );
     final preferences = await SharedPreferences.getInstance();
     await preferences.setString(_key(toUserId), jsonEncode(merged.toJson()));

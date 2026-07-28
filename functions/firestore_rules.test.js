@@ -164,21 +164,3 @@ test("moderation suspension markers are private to server operators", async () =
       ),
   );
 });
-
-test("content report request keys are private to server operators", async () => {
-  await environment.withSecurityRulesDisabled(async (context) => {
-    await setDoc(doc(context.firestore(), "contentReportRequests/request-1"), {
-      postId: "post-1",
-    });
-  });
-  const firestore = environment.authenticatedContext("viewer").firestore();
-  await assertFails(
-      getDoc(doc(firestore, "contentReportRequests/request-1")),
-  );
-  await assertFails(
-      setDoc(
-          doc(firestore, "contentReportRequests/request-2"),
-          {postId: "post-1"},
-      ),
-  );
-});

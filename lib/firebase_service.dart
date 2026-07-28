@@ -7,18 +7,6 @@ import 'community_safety.dart';
 import 'data/story_db.dart';
 import 'models.dart';
 
-class ReportResult {
-  final int reportCount;
-  final bool removed;
-  final bool alreadyReported;
-
-  const ReportResult({
-    required this.reportCount,
-    required this.removed,
-    required this.alreadyReported,
-  });
-}
-
 class AppFirebaseService {
   AppFirebaseService._();
 
@@ -181,27 +169,19 @@ class AppFirebaseService {
     });
   }
 
-  Future<ReportResult> report(
+  Future<void> report(
     String postId,
     CommunityReportReason reason, {
     String? ownerId,
-    String? requestId,
   }) async {
     final callable = FirebaseFunctions.instanceFor(
       region: 'asia-northeast3',
     ).httpsCallable('reportSharedPost');
-    final response = await callable.call(<String, dynamic>{
+    await callable.call<void>(<String, dynamic>{
       'postId': postId,
       'reason': reason.wireName,
       if (ownerId != null) 'ownerId': ownerId,
-      if (requestId != null) 'requestId': requestId,
     });
-    final data = Map<String, dynamic>.from(response.data as Map);
-    return ReportResult(
-      reportCount: data['reportCount'] as int? ?? 0,
-      removed: data['removed'] as bool? ?? false,
-      alreadyReported: data['alreadyReported'] as bool? ?? false,
-    );
   }
 
   Future<void> deleteSharedPost(String postId) async {

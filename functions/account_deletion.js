@@ -8,18 +8,12 @@ async function deleteAccountData({database, authentication, uid}) {
     sharedSnapshot,
     ownedReports,
     submittedReports,
-    ownedReportRequests,
-    submittedReportRequests,
     reportedPosts,
     reactedPosts,
   ] = await Promise.all([
     database.collection("sharedPosts").where("ownerId", "==", uid).get(),
     database.collection("contentReports").where("ownerId", "==", uid).get(),
     database.collection("contentReports").where("reporterId", "==", uid).get(),
-    database.collection("contentReportRequests")
-        .where("ownerId", "==", uid).get(),
-    database.collection("contentReportRequests")
-        .where("reporterId", "==", uid).get(),
     database.collection("sharedPosts")
         .where("reportedBy", "array-contains", uid).get(),
     database.collection("sharedPosts")
@@ -59,17 +53,6 @@ async function deleteAccountData({database, authentication, uid}) {
   for (const reportReference of reportReferences.values()) {
     writer.delete(reportReference);
   }
-  const requestReferences = new Map();
-  for (const request of [
-    ...ownedReportRequests.docs,
-    ...submittedReportRequests.docs,
-  ]) {
-    requestReferences.set(request.ref.path, request.ref);
-  }
-  for (const requestReference of requestReferences.values()) {
-    writer.delete(requestReference);
-  }
-  writer.delete(database.collection("reportRateLimits").doc(uid));
   if (typeof nickname === "string" && nickname.trim()) {
     const nicknameRef = database.collection("nicknames")
         .doc(nickname.trim().toLowerCase());

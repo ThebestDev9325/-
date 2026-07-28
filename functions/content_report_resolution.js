@@ -5,11 +5,6 @@ const actionableStatuses = new Set([
   "action_pending",
   "action_required",
 ]);
-const retentionMilliseconds = 90 * 24 * 60 * 60 * 1000;
-
-function expirationFrom(timestamp) {
-  return Timestamp.fromMillis(timestamp.toMillis() + retentionMilliseconds);
-}
 
 async function reportGroup(database, reportId) {
   const seed = await database.collection("contentReports").doc(reportId).get();
@@ -45,7 +40,6 @@ async function rejectReports(database, group, actionedBy) {
     status: "rejected",
     resolution: "no_violation",
     resolvedAt,
-    expiresAt: expirationFrom(resolvedAt),
     actionedBy,
   });
 }
@@ -109,7 +103,6 @@ async function suspendOwner(
     resolution: "post_removed_and_user_suspended",
     resolvedAt,
     suspendedAt: resolvedAt,
-    expiresAt: expirationFrom(resolvedAt),
     actionedBy,
     suspensionError: null,
   });

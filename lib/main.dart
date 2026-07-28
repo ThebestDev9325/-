@@ -237,7 +237,6 @@ class _AppShellState extends State<AppShell> {
           ..addAll(savedRecords);
       });
       await _subscribeToSharedPosts();
-      unawaited(_retryPendingReports());
     } catch (error, stackTrace) {
       debugPrint('Firebase connection error: $error\n$stackTrace');
     }
@@ -562,7 +561,6 @@ class _AppShellState extends State<AppShell> {
       _communitySafetyState = migrated;
     });
     await _subscribeToSharedPosts();
-    unawaited(_retryPendingReports());
   }
 
   int _todayWritingCount() {
@@ -589,7 +587,6 @@ class _AppShellState extends State<AppShell> {
       _communitySafetyState = CommunitySafetyState(
         hiddenPostIds: {..._communitySafetyState.hiddenPostIds, post.id},
         blockedOwnerIds: _communitySafetyState.blockedOwnerIds,
-        pendingReports: _communitySafetyState.pendingReports,
       );
       sharedPosts.removeWhere((item) => item.id == post.id);
     });
@@ -610,7 +607,6 @@ class _AppShellState extends State<AppShell> {
           ..._communitySafetyState.blockedOwnerIds,
           post.ownerId,
         },
-        pendingReports: _communitySafetyState.pendingReports,
       );
       sharedPosts.removeWhere((item) => item.ownerId == post.ownerId);
     });
@@ -626,93 +622,29 @@ class _AppShellState extends State<AppShell> {
     SharedPost post,
     CommunityReportReason reason,
   ) async {
-    final pending = PendingCommunityReport(
-      postId: post.id,
-      ownerId: post.ownerId,
-      requestId: createCommunityReportRequestId(),
-      reason: reason,
-    );
     setState(() {
       _communitySafetyState = CommunitySafetyState(
         hiddenPostIds: {..._communitySafetyState.hiddenPostIds, post.id},
         blockedOwnerIds: _communitySafetyState.blockedOwnerIds,
-        pendingReports: [
-          ..._communitySafetyState.pendingReports
-              .where((item) => item.postId != post.id),
-          pending,
-        ],
       );
       sharedPosts.removeWhere((item) => item.id == post.id);
     });
 
-    var persisted = false;
     try {
-      await _communitySafetyStore.enqueueReport(currentUserId, pending);
-      persisted = true;
+      await _communitySafetyStore.hidePost(currentUserId, post.id);
     } catch (_) {
-      // Remote delivery must still be attempted when local persistence fails.
+      // The post is still removed from the current feed.
     }
 
     try {
       await AppFirebaseService.instance.report(
         post.id,
         reason,
-        ownerId: pending.ownerId,
-        requestId: pending.requestId,
+        ownerId: post.ownerId,
       );
-      if (persisted) {
-        try {
-          await _communitySafetyStore.completeReport(currentUserId, post.id);
-        } catch (_) {
-          // The server deduplicates a persisted retry for the same reporter.
-        }
-      }
-      if (!mounted) return;
-      setState(() {
-        _communitySafetyState = CommunitySafetyState(
-          hiddenPostIds: _communitySafetyState.hiddenPostIds,
-          blockedOwnerIds: _communitySafetyState.blockedOwnerIds,
-          pendingReports: _communitySafetyState.pendingReports
-              .where((item) => item.postId != post.id)
-              .toList(),
-        );
-      });
       _showMessage('신고가 접수되었고 게시물을 피드에서 숨겼습니다.');
     } catch (_) {
-      _showMessage(
-        persisted
-            ? '게시물을 숨겼습니다. 앱을 다시 열면 신고를 재전송합니다.'
-            : '게시물은 숨겼지만 신고 정보를 저장하지 못했습니다.',
-      );
-    }
-  }
-
-  Future<void> _retryPendingReports() async {
-    for (final report in [..._communitySafetyState.pendingReports]) {
-      try {
-        await AppFirebaseService.instance.report(
-          report.postId,
-          report.reason,
-          ownerId: report.ownerId,
-          requestId: report.requestId,
-        );
-        await _communitySafetyStore.completeReport(
-          currentUserId,
-          report.postId,
-        );
-        if (!mounted) return;
-        setState(() {
-          _communitySafetyState = CommunitySafetyState(
-            hiddenPostIds: _communitySafetyState.hiddenPostIds,
-            blockedOwnerIds: _communitySafetyState.blockedOwnerIds,
-            pendingReports: _communitySafetyState.pendingReports
-                .where((item) => item.postId != report.postId)
-                .toList(),
-          );
-        });
-      } catch (_) {
-        // The persisted report remains available for retry on the next app start.
-      }
+      _showMessage('게시물은 숨겼지만 신고를 접수하지 못했습니다. 다시 시도해주세요.');
     }
   }
 

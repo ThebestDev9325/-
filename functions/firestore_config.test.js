@@ -3,7 +3,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
 
-test("Firestore configuration includes the deadline index and report TTL", () => {
+test("Firestore configuration only includes the deadline index", () => {
   const configuration = JSON.parse(fs.readFileSync(
       path.join(__dirname, "..", "firestore.indexes.json"),
       "utf8",
@@ -13,9 +13,5 @@ test("Firestore configuration includes the deadline index and report TTL", () =>
       index.fields.some((field) => field.fieldPath === "status") &&
       index.fields.some((field) => field.fieldPath === "deadlineAt");
   }));
-  assert.ok(configuration.fieldOverrides.some((override) => {
-    return override.collectionGroup === "contentReports" &&
-      override.fieldPath === "expiresAt" &&
-      override.ttl === true;
-  }));
+  assert.deepEqual(configuration.fieldOverrides, []);
 });

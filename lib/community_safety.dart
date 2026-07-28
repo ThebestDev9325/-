@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import 'package:unorm_dart/unorm_dart.dart' as unicode;
 
 enum CommunityContentViolation {
@@ -38,13 +36,6 @@ enum CommunityReportReason {
 
   final String wireName;
   final String label;
-
-  static CommunityReportReason fromWireName(String value) {
-    return values.firstWhere(
-      (reason) => reason.wireName == value,
-      orElse: () => CommunityReportReason.other,
-    );
-  }
 }
 
 const communityCategories = {
@@ -136,68 +127,14 @@ bool _containsAny(String text, List<String> terms) {
   return terms.any(text.contains);
 }
 
-class PendingCommunityReport {
-  const PendingCommunityReport({
-    required this.postId,
-    required this.ownerId,
-    this.requestId,
-    required this.reason,
-  });
-
-  final String postId;
-  final String ownerId;
-  final String? requestId;
-  final CommunityReportReason reason;
-
-  Map<String, dynamic> toJson() => {
-        'postId': postId,
-        'ownerId': ownerId,
-        if (requestId != null) 'requestId': requestId,
-        'reason': reason.wireName,
-      };
-
-  factory PendingCommunityReport.fromJson(Map<String, dynamic> json) {
-    return PendingCommunityReport(
-      postId: json['postId'] as String,
-      ownerId: json['ownerId'] as String,
-      requestId: json['requestId'] as String?,
-      reason: CommunityReportReason.fromWireName(json['reason'] as String),
-    );
-  }
-
-  @override
-  bool operator ==(Object other) {
-    return other is PendingCommunityReport &&
-        other.postId == postId &&
-        other.ownerId == ownerId &&
-        other.requestId == requestId &&
-        other.reason == reason;
-  }
-
-  @override
-  int get hashCode => Object.hash(postId, ownerId, requestId, reason);
-}
-
-final Random _communityReportRandom = Random.secure();
-
-String createCommunityReportRequestId() {
-  return List.generate(
-    16,
-    (_) =>
-        _communityReportRandom.nextInt(256).toRadixString(16).padLeft(2, '0'),
-  ).join();
-}
-
 class CommunitySafetyState {
   const CommunitySafetyState({
     this.hiddenPostIds = const {},
     this.blockedOwnerIds = const {},
-    this.pendingReports = const [],
   });
 
   final Set<String> hiddenPostIds;
   final Set<String> blockedOwnerIds;
-  final List<PendingCommunityReport> pendingReports;
 
   bool allows({
     required String postId,
@@ -210,8 +147,6 @@ class CommunitySafetyState {
   Map<String, dynamic> toJson() => {
         'hiddenPostIds': hiddenPostIds.toList()..sort(),
         'blockedOwnerIds': blockedOwnerIds.toList()..sort(),
-        'pendingReports':
-            pendingReports.map((report) => report.toJson()).toList(),
       };
 
   factory CommunitySafetyState.fromJson(Map<String, dynamic> json) {
@@ -220,14 +155,6 @@ class CommunitySafetyState {
           Set<String>.from(json['hiddenPostIds'] as List? ?? const []),
       blockedOwnerIds:
           Set<String>.from(json['blockedOwnerIds'] as List? ?? const []),
-      pendingReports: (json['pendingReports'] as List? ?? const [])
-          .whereType<Map>()
-          .map(
-            (item) => PendingCommunityReport.fromJson(
-              Map<String, dynamic>.from(item),
-            ),
-          )
-          .toList(),
     );
   }
 }
@@ -237,11 +164,6 @@ abstract interface class CommunitySafetyStore {
   Future<CommunitySafetyState> load(String userId);
   Future<void> hidePost(String userId, String postId);
   Future<void> blockAuthor(String userId, String ownerId);
-  Future<void> enqueueReport(
-    String userId,
-    PendingCommunityReport report,
-  );
-  Future<void> completeReport(String userId, String postId);
   Future<CommunitySafetyState> migrate(
     String fromUserId,
     String toUserId,

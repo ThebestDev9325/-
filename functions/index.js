@@ -8,8 +8,6 @@ const {isValidSharedPost} = require("./content_moderation");
 const {
   legacyReportDocumentId,
   reportDocumentId,
-  reportRequestDocumentId,
-  reporterHash,
 } = require("./content_report_identity");
 
 initializeApp();
@@ -26,7 +24,6 @@ const reportReasons = new Set([
   "other",
   "legacy_unspecified",
 ]);
-const reportLimitPerHour = 10;
 const reportDeadlineMilliseconds = 24 * 60 * 60 * 1000;
 
 function validDocumentId(value) {
@@ -168,23 +165,9 @@ exports.reportSharedPost = onCall({region: "asia-northeast3"}, async (request) =
         "신고 대상 사연의 소유자가 올바르지 않습니다.",
     );
   }
-  const requestId = request.data && request.data.requestId;
-  if (requestId != null &&
-      (typeof requestId !== "string" ||
-       !/^[0-9a-f]{32}$/.test(requestId))) {
-    throw new HttpsError(
-        "invalid-argument",
-        "신고 요청 식별자가 올바르지 않습니다.",
-    );
-  }
   const uid = request.auth.uid;
   const postRef = db.collection("sharedPosts").doc(postId);
   const suspensionRef = db.collection("moderationSuspensions").doc(uid);
-  const rateLimitRef = db.collection("reportRateLimits").doc(uid);
-  const requestRef = requestId == null ?
-    null :
-    db.collection("contentReportRequests")
-        .doc(reportRequestDocumentId(requestId));
   const now = Timestamp.now();
   const result = await db.runTransaction(async (transaction) => {
     const [snapshot, suspension] = await transaction.getAll(
@@ -228,40 +211,13 @@ exports.reportSharedPost = onCall({region: "asia-northeast3"}, async (request) =
         .doc(reportDocumentId(postId, ownerId, uid));
     const legacyReportRef = db.collection("contentReports")
         .doc(legacyReportDocumentId(postId, uid));
-    const references = [reportRef, legacyReportRef];
-    if (requestRef != null) references.push(requestRef);
-    const [existingReport, legacyReport, existingRequest] =
-      await transaction.getAll(...references);
-    if (existingRequest && existingRequest.exists) {
-      const previousRequest = existingRequest.data();
-      if (previousRequest.postId !== postId ||
-          previousRequest.ownerId !== ownerId) {
-        throw new HttpsError(
-            "already-exists",
-            "이미 다른 신고에 사용된 요청 식별자입니다.",
-        );
-      }
-      return {
-        reportCount: Number(data.reportCount) || 0,
-        removed: false,
-        alreadyReported: true,
-        recorded: false,
-      };
-    }
-    const recordRequest = (targetReportRef) => {
-      if (requestRef == null) return;
-      transaction.create(requestRef, {
-        postId,
-        ownerId,
-        reportId: targetReportRef.id,
-        reporterId: uid,
-        createdAt: now,
-      });
-    };
+    const [existingReport, legacyReport] = await transaction.getAll(
+        reportRef,
+        legacyReportRef,
+    );
     const hasMatchingLegacyReport = legacyReport.exists &&
       legacyReport.data().ownerId === ownerId;
     if (existingReport.exists || hasMatchingLegacyReport) {
-      recordRequest(existingReport.exists ? reportRef : legacyReportRef);
       return {
         reportCount: Number(data.reportCount) || 0,
         removed: false,
@@ -293,25 +249,12 @@ exports.reportSharedPost = onCall({region: "asia-northeast3"}, async (request) =
       transaction.update(postRef, {
         reportedBy: legacyReporters.filter((reporterId) => reporterId !== uid),
       });
-      recordRequest(reportRef);
       return {
         reportCount: Number(data.reportCount) || legacyReporters.length,
         removed: false,
         alreadyReported: true,
         recorded: true,
       };
-    }
-    const rateLimit = await transaction.get(rateLimitRef);
-    const rateData = rateLimit.data();
-    const currentWindowStart = rateData && rateData.windowStart;
-    const sameWindow = currentWindowStart instanceof Timestamp &&
-      now.toMillis() - currentWindowStart.toMillis() < 60 * 60 * 1000;
-    const currentCount = sameWindow ? Number(rateData.count) || 0 : 0;
-    if (currentCount >= reportLimitPerHour) {
-      throw new HttpsError(
-          "resource-exhausted",
-          "신고 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.",
-      );
     }
 
     const reportCount = (Number(data.reportCount) || 0) + 1;
@@ -331,12 +274,6 @@ exports.reportSharedPost = onCall({region: "asia-northeast3"}, async (request) =
         createdAt: data.createdAt || now,
       },
     });
-    recordRequest(reportRef);
-    transaction.set(rateLimitRef, {
-      windowStart: sameWindow ? currentWindowStart : now,
-      count: currentCount + 1,
-      updatedAt: now,
-    });
     transaction.update(postRef, {
       reportCount,
     });
@@ -350,7 +287,6 @@ exports.reportSharedPost = onCall({region: "asia-northeast3"}, async (request) =
   if (result.recorded) {
     logger.warn("content_report_received", {
       postId,
-      reporterHash: reporterHash(uid),
       deadlineAt: now.toMillis() + reportDeadlineMilliseconds,
     });
   }

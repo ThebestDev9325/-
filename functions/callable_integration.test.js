@@ -22,9 +22,7 @@ const {deleteAccountData} = require("./account_deletion");
 const {resolveContentReport} = require("./content_report_resolution");
 const {
   legacyReportDocumentId,
-  migratePost,
-  reportDocumentId,
-} = require("./reported_by_migration");
+} = require("./content_report_identity");
 
 const projectId = process.env.GCLOUD_PROJECT || "thebest-dev";
 const hasEmulators = Boolean(
@@ -587,110 +585,28 @@ test(
 );
 
 test(
-    "a persisted request stays idempotent after the reporter account changes",
+    "a reporter can flag every objectionable post without an hourly cap",
     {skip: !hasEmulators},
     async () => {
-      const postId = `callable-request-replay-${Date.now()}`;
-      const ownerId = "request-replay-owner";
-      const requestId = "0123456789abcdef0123456789abcdef";
-      const firstReporter = await createAnonymousReporter("request-first");
-      const linkedReporter = await createAnonymousReporter("request-linked");
-      await createPost(postId, ownerId);
-
-      try {
-        const first = await firstReporter.report({
+      const prefix = `callable-no-report-cap-${Date.now()}`;
+      for (let index = 0; index < 11; index++) {
+        const postId = `${prefix}-${index}`;
+        await createPost(postId, `owner-${index}`);
+        const result = await reportSharedPost({
           postId,
-          ownerId,
-          requestId,
+          ownerId: `owner-${index}`,
           reason: "harassment",
         });
-        const replay = await linkedReporter.report({
-          postId,
-          ownerId,
-          requestId,
-          reason: "harassment",
-        });
-        const reports = await database.collection("contentReports")
-            .where("postId", "==", postId)
-            .get();
-        const publicPost = await database.collection("sharedPosts")
-            .doc(postId).get();
-
-        assert.equal(first.data.reportCount, 1);
-        assert.equal(replay.data.alreadyReported, true);
-        assert.equal(reports.size, 1);
-        assert.equal(publicPost.data().reportCount, 1);
-      } finally {
-        await Promise.all([
-          deleteApp(firstReporter.app),
-          deleteApp(linkedReporter.app),
-        ]);
+        assert.equal(result.data.alreadyReported, false);
       }
-    },
-);
-
-test(
-    "a persisted request cannot report a replacement post owner",
-    {skip: !hasEmulators},
-    async () => {
-      const postId = `callable-stale-owner-${Date.now()}`;
-      const requestId = "fedcba9876543210fedcba9876543210";
-      await createPost(postId, "original-owner");
-      await database.collection("sharedPosts").doc(postId).delete();
-      await createPost(postId, "replacement-owner");
-
-      const result = await reportSharedPost({
-        postId,
-        ownerId: "original-owner",
-        requestId,
-        reason: "spam",
-      });
       const reports = await database.collection("contentReports")
-          .where("postId", "==", postId)
           .get();
-      const replacement = await database.collection("sharedPosts")
-          .doc(postId).get();
-
-      assert.equal(result.data.removed, true);
-      assert.equal(result.data.alreadyReported, false);
-      assert.equal(reports.size, 0);
-      assert.equal(replacement.data().reportCount, 0);
-    },
-);
-
-test(
-    "a request id cannot suppress a different report",
-    {skip: !hasEmulators},
-    async () => {
-      const prefix = `callable-request-conflict-${Date.now()}`;
-      const requestId = "00112233445566778899aabbccddeeff";
-      await createPost(`${prefix}-first`, "first-owner");
-      await createPost(`${prefix}-second`, "second-owner");
-      await reportSharedPost({
-        postId: `${prefix}-first`,
-        ownerId: "first-owner",
-        requestId,
-        reason: "harassment",
-      });
-
-      await assert.rejects(
-          reportSharedPost({
-            postId: `${prefix}-second`,
-            ownerId: "second-owner",
-            requestId,
-            reason: "spam",
-          }),
-          (error) => error.code === "functions/already-exists",
+      assert.equal(
+          reports.docs.filter((report) => {
+            return report.data().postId.startsWith(prefix);
+          }).length,
+          11,
       );
-      const secondPost = await database.collection("sharedPosts")
-          .doc(`${prefix}-second`)
-          .get();
-      const secondReports = await database.collection("contentReports")
-          .where("postId", "==", `${prefix}-second`)
-          .get();
-
-      assert.equal(secondPost.data().reportCount, 0);
-      assert.equal(secondReports.size, 0);
     },
 );
 
@@ -852,39 +768,7 @@ test(
 );
 
 test(
-    "an anonymous reporter is limited to ten reports per hour",
-    {skip: !hasEmulators},
-    async () => {
-      const reporter = await createAnonymousReporter("rate-limit");
-      const prefix = `callable-rate-${Date.now()}`;
-      try {
-        for (let index = 0; index < 11; index++) {
-          await createPost(`${prefix}-${index}`);
-        }
-        for (let index = 0; index < 10; index++) {
-          await reporter.report({
-            postId: `${prefix}-${index}`,
-            reason: "spam",
-          });
-        }
-        await assert.rejects(
-            reporter.report({
-              postId: `${prefix}-10`,
-              reason: "spam",
-            }),
-            (error) => error.code === "functions/resource-exhausted",
-        );
-        const untouchedPost = await database.collection("sharedPosts")
-            .doc(`${prefix}-10`).get();
-        assert.equal(untouchedPost.data().reportCount, 0);
-      } finally {
-        await deleteApp(reporter.app);
-      }
-    },
-);
-
-test(
-    "account deletion removes reports, rate limits, posts, records, and auth",
+    "account deletion removes reports, posts, records, and auth",
     {skip: !hasEmulators},
     async () => {
       const uid = `delete-user-${Date.now()}`;
@@ -898,12 +782,6 @@ test(
           .set({ownerId: uid, reporterId: "other"});
       await database.collection("contentReports").doc("delete-submitted-report")
           .set({ownerId: "other", reporterId: uid});
-      await database.collection("contentReportRequests").doc("delete-owned")
-          .set({ownerId: uid, reporterId: "other"});
-      await database.collection("contentReportRequests")
-          .doc("delete-submitted")
-          .set({ownerId: "other", reporterId: uid});
-      await database.collection("reportRateLimits").doc(uid).set({count: 1});
       await createPost("delete-observed", "other-owner");
       await database.collection("sharedPosts").doc("delete-observed").update({
         reportedBy: [uid, "other-reporter"],
@@ -920,10 +798,6 @@ test(
         database.collection("contentReports").doc("delete-owned-report").get(),
         database.collection("contentReports")
             .doc("delete-submitted-report").get(),
-        database.collection("contentReportRequests").doc("delete-owned").get(),
-        database.collection("contentReportRequests")
-            .doc("delete-submitted").get(),
-        database.collection("reportRateLimits").doc(uid).get(),
         database.collection("sharedPosts").doc("delete-observed").get(),
       ]);
       assert.ok(remaining.slice(0, -1).every((snapshot) => !snapshot.exists));
@@ -939,47 +813,5 @@ test(
           authentication.getUser(uid),
           (error) => error.code === "auth/user-not-found",
       );
-    },
-);
-
-test(
-    "legacy migration preserves an existing report and records missing reports",
-    {skip: !hasEmulators},
-    async () => {
-      const postId = `migration-race-${Date.now()}`;
-      const existingReporter = "existing-reporter";
-      const missingReporter = "missing-reporter";
-      await createPost(postId);
-      const postReference = database.collection("sharedPosts").doc(postId);
-      await postReference.update({
-        reportedBy: [existingReporter, missingReporter],
-        reportCount: 2,
-      });
-      const existingReference = database.collection("contentReports").doc(
-          legacyReportDocumentId(postId, existingReporter),
-      );
-      await existingReference.set({
-        postId,
-        ownerId: "owner",
-        reporterId: existingReporter,
-        reason: "harassment",
-        status: "pending",
-        deadlineAt: Timestamp.now(),
-      });
-
-      const migratedCount = await migratePost(database, postReference);
-      const existing = await existingReference.get();
-      const migrated = await database.collection("contentReports").doc(
-          reportDocumentId(postId, "owner", missingReporter),
-      ).get();
-      const migratedPost = await postReference.get();
-
-      assert.equal(migratedCount, 1);
-      assert.equal(existing.data().reason, "harassment");
-      assert.equal(existing.data().status, "pending");
-      assert.equal(migrated.data().reason, "legacy_unspecified");
-      assert.equal(migrated.data().status, "pending");
-      assert.ok(migrated.data().deadlineAt);
-      assert.deepEqual(migratedPost.data().reportedBy, []);
     },
 );
