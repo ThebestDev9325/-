@@ -1,10 +1,44 @@
 const {onCall, HttpsError} = require("firebase-functions/v2/https");
+const {onDocumentCreated} = require("firebase-functions/v2/firestore");
+const {onSchedule} = require("firebase-functions/v2/scheduler");
+const logger = require("firebase-functions/logger");
 const {initializeApp} = require("firebase-admin/app");
 const {getAuth} = require("firebase-admin/auth");
-const {getFirestore} = require("firebase-admin/firestore");
+const {getFirestore, Timestamp} = require("firebase-admin/firestore");
+const {createHash} = require("node:crypto");
+const {isValidSharedPost} = require("./content_moderation");
 
 initializeApp();
 const db = getFirestore();
+const reportReasons = new Set([
+  "harassment",
+  "hate",
+  "violence",
+  "sexual",
+  "personal_information",
+  "illegal",
+  "spam",
+  "other",
+  "legacy_unspecified",
+]);
+const reportLimitPerHour = 10;
+const reportDeadlineMilliseconds = 24 * 60 * 60 * 1000;
+
+function reportDocumentId(postId, reporterId) {
+  const reporterHash = createHash("sha256").update(reporterId).digest("hex");
+  return `${postId}_${reporterHash}`;
+}
+
+function reporterHash(reporterId) {
+  return createHash("sha256").update(reporterId).digest("hex");
+}
+
+async function resetPrivateRecordSharing(transaction, ownerId, postId) {
+  const recordRef = db.collection("users").doc(ownerId)
+      .collection("records").doc(postId);
+  const record = await transaction.get(recordRef);
+  if (record.exists) transaction.update(recordRef, {shared: false});
+}
 
 async function kakaoUserId(accessToken) {
   if (typeof accessToken !== "string" || accessToken.length < 20) {
@@ -35,38 +69,170 @@ exports.reportSharedPost = onCall({region: "asia-northeast3"}, async (request) =
     throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
   }
   const postId = request.data && request.data.postId;
-  if (typeof postId !== "string" || postId.length === 0) {
+  if (typeof postId !== "string" ||
+      postId.length === 0 ||
+      postId.length > 128 ||
+      postId.includes("/")) {
     throw new HttpsError("invalid-argument", "신고할 사연을 확인할 수 없습니다.");
   }
+  const requestedReason = request.data && request.data.reason;
+  const reason = requestedReason == null ? "legacy_unspecified" : requestedReason;
+  if (!reportReasons.has(reason)) {
+    throw new HttpsError("invalid-argument", "신고 사유가 올바르지 않습니다.");
+  }
   const uid = request.auth.uid;
-  const ref = db.collection("sharedPosts").doc(postId);
-  return db.runTransaction(async (transaction) => {
-    const snapshot = await transaction.get(ref);
+  const postRef = db.collection("sharedPosts").doc(postId);
+  const reportRef = db.collection("contentReports")
+      .doc(reportDocumentId(postId, uid));
+  const rateLimitRef = db.collection("reportRateLimits").doc(uid);
+  const now = Timestamp.now();
+  const result = await db.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(postRef);
     if (!snapshot.exists) {
-      return {reportCount: 5, removed: true, alreadyReported: false};
+      return {
+        reportCount: 5,
+        removed: true,
+        alreadyReported: false,
+        queued: false,
+      };
     }
     const data = snapshot.data();
     if (data.ownerId === uid) {
       throw new HttpsError("failed-precondition", "내 사연은 신고할 수 없습니다.");
     }
-    const reportedBy = Array.isArray(data.reportedBy) ? data.reportedBy : [];
-    if (reportedBy.includes(uid)) {
+    const existingReport = await transaction.get(reportRef);
+    if (existingReport.exists) {
       return {
-        reportCount: Number(data.reportCount) || reportedBy.length,
+        reportCount: Number(data.reportCount) || 0,
         removed: false,
         alreadyReported: true,
+        queued: false,
       };
     }
-    const nextReportedBy = [...reportedBy, uid];
-    const reportCount = nextReportedBy.length;
-    if (reportCount >= 5) {
-      transaction.delete(ref);
-      return {reportCount, removed: true, alreadyReported: false};
+    const rateLimit = await transaction.get(rateLimitRef);
+    const rateData = rateLimit.data();
+    const currentWindowStart = rateData && rateData.windowStart;
+    const sameWindow = currentWindowStart instanceof Timestamp &&
+      now.toMillis() - currentWindowStart.toMillis() < 60 * 60 * 1000;
+    const currentCount = sameWindow ? Number(rateData.count) || 0 : 0;
+    if (currentCount >= reportLimitPerHour) {
+      throw new HttpsError(
+          "resource-exhausted",
+          "신고 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.",
+      );
     }
-    transaction.update(ref, {reportedBy: nextReportedBy, reportCount});
-    return {reportCount, removed: false, alreadyReported: false};
+
+    const reportCount = (Number(data.reportCount) || 0) + 1;
+    if (reportCount >= 5) {
+      await resetPrivateRecordSharing(
+          transaction,
+          String(data.ownerId),
+          postId,
+      );
+    }
+    transaction.create(reportRef, {
+      postId,
+      ownerId: String(data.ownerId),
+      reporterId: uid,
+      reason,
+      status: "pending",
+      createdAt: now,
+      deadlineAt: Timestamp.fromMillis(
+          now.toMillis() + reportDeadlineMilliseconds,
+      ),
+      snapshot: {
+        category: String(data.category || ""),
+        text: String(data.text || "").slice(0, 2000),
+        createdAt: data.createdAt || now,
+      },
+    });
+    transaction.set(rateLimitRef, {
+      windowStart: sameWindow ? currentWindowStart : now,
+      count: currentCount + 1,
+      updatedAt: now,
+    });
+    if (reportCount >= 5) {
+      transaction.delete(postRef);
+      return {
+        reportCount,
+        removed: true,
+        alreadyReported: false,
+        queued: true,
+      };
+    }
+    transaction.update(postRef, {reportCount});
+    return {
+      reportCount,
+      removed: false,
+      alreadyReported: false,
+      queued: true,
+    };
   });
+  if (result.queued) {
+    logger.warn("content_report_received", {
+      postId,
+      reporterHash: reporterHash(uid),
+      deadlineAt: now.toMillis() + reportDeadlineMilliseconds,
+    });
+  }
+  return {
+    reportCount: result.reportCount,
+    removed: result.removed,
+    alreadyReported: result.alreadyReported,
+  };
 });
+
+exports.moderateCreatedSharedPost = onDocumentCreated(
+    {document: "sharedPosts/{postId}", region: "asia-northeast3"},
+    async (event) => {
+      const snapshot = event.data;
+      if (!snapshot || isValidSharedPost(snapshot.data())) return;
+      await db.runTransaction(async (transaction) => {
+        const current = await transaction.get(snapshot.ref);
+        if (!current.exists) return;
+        const ownerId = current.data().ownerId;
+        if (typeof ownerId === "string") {
+          await resetPrivateRecordSharing(
+              transaction,
+              ownerId,
+              event.params.postId,
+          );
+        }
+        transaction.delete(snapshot.ref);
+      });
+      logger.error("invalid_shared_post_removed", {
+        postId: event.params.postId,
+      });
+    },
+);
+
+exports.monitorPendingContentReports = onSchedule(
+    {schedule: "every 60 minutes", region: "asia-northeast3"},
+    async () => {
+      const now = Timestamp.now();
+      const approaching = Timestamp.fromMillis(
+          now.toMillis() + 4 * 60 * 60 * 1000,
+      );
+      const reports = await db.collection("contentReports")
+          .where("deadlineAt", "<=", approaching)
+          .get();
+      for (const report of reports.docs) {
+        const data = report.data();
+        if (data.status !== "pending" || !(data.deadlineAt instanceof Timestamp)) {
+          continue;
+        }
+        const overdue = data.deadlineAt.toMillis() <= now.toMillis();
+        logger.error(
+            overdue ? "deadline_overdue" : "deadline_approaching",
+            {
+              reportId: report.id,
+              postId: data.postId,
+              deadlineAt: data.deadlineAt.toMillis(),
+            },
+        );
+      }
+    },
+);
 
 async function deleteAccountData(uid) {
   const userRef = db.collection("users").doc(uid);

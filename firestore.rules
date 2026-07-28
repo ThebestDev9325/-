@@ -39,11 +39,101 @@ service cloud.firestore {
     match /sharedPosts/{postId} {
       allow read: if signedIn();
       allow create: if signedIn()
-        && request.resource.data.ownerId == request.auth.uid;
+        && request.resource.data.keys().hasAll([
+          'ownerId', 'createdAt', 'category', 'moodEmoji', 'moodLabel',
+          'text', 'storyId', 'shared', 'reactions', 'reactedBy', 'reportCount'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'ownerId', 'createdAt', 'category', 'moodEmoji', 'moodLabel',
+          'text', 'storyId', 'shared', 'reactions', 'reactedBy', 'reportCount',
+          'reportedBy'
+        ])
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.ownerId is string
+        && request.resource.data.ownerId.size() > 0
+        && request.resource.data.ownerId.size() <= 128
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.category in [
+          '직장', '고객', '가족', '연인', '친구', '타인', '나 자신', '기타'
+        ]
+        && request.resource.data.moodEmoji in ['🤬', '😤', '😐', '🙂']
+        && request.resource.data.moodLabel in [
+          '폭발 직전', '많이 화남', '답답함', '조금 괜찮음'
+        ]
+        && (
+          (
+            request.resource.data.moodEmoji == '🤬'
+            && request.resource.data.moodLabel == '폭발 직전'
+          )
+          || (
+            request.resource.data.moodEmoji == '😤'
+            && request.resource.data.moodLabel == '많이 화남'
+          )
+          || (
+            request.resource.data.moodEmoji == '😐'
+            && request.resource.data.moodLabel == '답답함'
+          )
+          || (
+            request.resource.data.moodEmoji == '🙂'
+            && request.resource.data.moodLabel == '조금 괜찮음'
+          )
+        )
+        && request.resource.data.text is string
+        && request.resource.data.text.size() > 0
+        && request.resource.data.text.size() <= 2000
+        && request.resource.data.storyId is string
+        && request.resource.data.storyId.size() > 0
+        && request.resource.data.storyId.size() <= 128
+        && request.resource.data.shared == true
+        && request.resource.data.reactions == [0, 0, 0]
+        && request.resource.data.reactedBy is list
+        && request.resource.data.reactedBy.size() == 0
+        && request.resource.data.reportCount == 0
+        && (
+          !('reportedBy' in request.resource.data)
+          || (
+            request.resource.data.reportedBy is list
+            && request.resource.data.reportedBy.size() == 0
+          )
+        );
       allow update: if signedIn()
         && request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['reactions', 'reactedBy']);
+          .hasOnly(['reactions', 'reactedBy'])
+        && resource.data.ownerId != request.auth.uid
+        && resource.data.reactedBy is list
+        && !resource.data.reactedBy.hasAny([request.auth.uid])
+        && request.resource.data.reactedBy is list
+        && request.resource.data.reactedBy.size()
+          == resource.data.reactedBy.size() + 1
+        && request.resource.data.reactedBy.hasAll(resource.data.reactedBy)
+        && request.resource.data.reactedBy.hasAny([request.auth.uid])
+        && request.resource.data.reactions is list
+        && request.resource.data.reactions.size() == 3
+        && request.resource.data.reactions[0] - resource.data.reactions[0]
+          in [0, 1]
+        && request.resource.data.reactions[1] - resource.data.reactions[1]
+          in [0, 1]
+        && request.resource.data.reactions[2] - resource.data.reactions[2]
+          in [0, 1]
+        && request.resource.data.reactions[0]
+          + request.resource.data.reactions[1]
+          + request.resource.data.reactions[2]
+          == resource.data.reactions[0]
+          + resource.data.reactions[1]
+          + resource.data.reactions[2] + 1;
       allow delete: if signedIn() && resource.data.ownerId == request.auth.uid;
+    }
+
+    match /contentReports/{reportId} {
+      allow read, write: if false;
+    }
+
+    match /reportRateLimits/{userId} {
+      allow read, write: if false;
+    }
+
+    match /moderationEvents/{eventId} {
+      allow read, write: if false;
     }
 
     match /storyFeedback/{storyId} {

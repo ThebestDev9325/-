@@ -1,0 +1,111 @@
+const fs = require("node:fs");
+const path = require("node:path");
+const test = require("node:test");
+const {
+  assertFails,
+  assertSucceeds,
+  initializeTestEnvironment,
+} = require("@firebase/rules-unit-testing");
+const {
+  doc,
+  getDoc,
+  setDoc,
+  Timestamp,
+  updateDoc,
+} = require("firebase/firestore");
+
+const projectId = "chameulin-rules-test";
+let environment;
+
+function validPost(ownerId = "owner") {
+  return {
+    ownerId,
+    createdAt: Timestamp.fromDate(new Date("2026-07-28T00:00:00Z")),
+    category: "직장",
+    moodEmoji: "😤",
+    moodLabel: "많이 화남",
+    text: "오늘 회사에서 속상한 일이 있었어요.",
+    storyId: "story-1",
+    shared: true,
+    reactions: [0, 0, 0],
+    reactedBy: [],
+    reportCount: 0,
+  };
+}
+
+test.before(async () => {
+  environment = await initializeTestEnvironment({
+    projectId,
+    firestore: {
+      rules: fs.readFileSync(
+          path.join(__dirname, "..", "firestore.rules"),
+          "utf8",
+      ),
+    },
+  });
+});
+
+test.after(async () => {
+  await environment.cleanup();
+});
+
+test.beforeEach(async () => {
+  await environment.clearFirestore();
+});
+
+test("owner can create a valid shared post", async () => {
+  const firestore = environment.authenticatedContext("owner").firestore();
+  await assertSucceeds(
+      setDoc(doc(firestore, "sharedPosts/post-1"), validPost()),
+  );
+});
+
+test("invalid category and arbitrary fields are rejected", async () => {
+  const firestore = environment.authenticatedContext("owner").firestore();
+  await assertFails(
+      setDoc(
+          doc(firestore, "sharedPosts/post-1"),
+          {...validPost(), category: "<script>", unexpected: true},
+      ),
+  );
+});
+
+test("mismatched mood metadata is rejected", async () => {
+  const firestore = environment.authenticatedContext("owner").firestore();
+  await assertFails(
+      setDoc(
+          doc(firestore, "sharedPosts/post-1"),
+          {...validPost(), moodLabel: "답답함"},
+      ),
+  );
+});
+
+test("a user can add exactly one reaction only once", async () => {
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(
+        doc(context.firestore(), "sharedPosts/post-1"),
+        validPost(),
+    );
+  });
+  const firestore = environment.authenticatedContext("viewer").firestore();
+  const reference = doc(firestore, "sharedPosts/post-1");
+  await assertSucceeds(
+      updateDoc(reference, {reactions: [1, 0, 0], reactedBy: ["viewer"]}),
+  );
+  await assertFails(
+      updateDoc(reference, {reactions: [2, 0, 0], reactedBy: ["viewer"]}),
+  );
+});
+
+test("content reports are private to server operators", async () => {
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), "contentReports/report-1"), {
+      status: "pending",
+    });
+  });
+  const firestore = environment.authenticatedContext("viewer").firestore();
+  await assertFails(getDoc(doc(firestore, "contentReports/report-1")));
+  await assertFails(
+      setDoc(doc(firestore, "contentReports/report-2"), {status: "pending"}),
+  );
+});

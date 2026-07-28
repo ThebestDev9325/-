@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-const currentTermsVersion = '2026.07.19';
-const currentTermsEffectiveDate = '2026년 7월 19일';
+const currentTermsVersion = '2026.07.28';
+const currentTermsEffectiveDate = '2026년 7월 28일';
 
 class LegalConsentStore {
   LegalConsentStore._();
@@ -91,7 +91,11 @@ extension LegalDocumentTypeText on LegalDocumentType {
 • 불법 행위나 자해를 조장하는 내용
 • 광고, 도배 및 서비스 목적과 관계없는 내용
 
-공유한 글은 다른 사용자가 보고 공감하거나 신고할 수 있습니다. 운영정책을 위반한 게시물은 신고 검토 후 제한 또는 삭제될 수 있습니다.''',
+공유한 글은 다른 사용자가 보고 공감하거나 신고할 수 있습니다. 사용자는 게시물을 즉시 숨기거나 작성자를 차단할 수 있고, 본인이 공유한 글은 직접 삭제할 수 있습니다.
+
+운영자는 신고를 24시간 이내 확인하고, 운영정책을 위반한 게시물을 삭제하며 위반 사용자의 서비스 이용을 제한하거나 계정을 정지합니다.
+
+부적절한 활동 신고 및 문의: a01041989325@gmail.com''',
         LegalDocumentType.disclaimer => '''참을인은 감정을 기록하고 돌아보는 데 도움을 주는 서비스입니다.
 
 작성한 기록은 기본적으로 본인만 볼 수 있으며, 사용자가 직접 공유를 선택한 경우에만 공감 공간에 공개됩니다. 공유 전에는 이름, 연락처, 주소 등 개인을 알아볼 수 있는 정보가 포함되지 않았는지 확인해 주세요.
@@ -279,7 +283,7 @@ class _InitialConsentPageState extends State<InitialConsentPage> {
               ),
               _check(
                 '필수',
-                '만 14세 이상입니다',
+                '만 18세 이상입니다',
                 age,
                 (v) => setState(() => age = v),
                 null,
