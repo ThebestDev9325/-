@@ -8,6 +8,7 @@
 - [x] 앱 정보 → 연령 등급에서 익명 UGC 요구에 맞게 `18+`로 설정
 - [x] 앱 정보 → 연령 등급 → `Advertising`을 `Yes`로 설정
 - [x] Support URL을 `https://thebestdev9325.github.io/-/ios-support.html`로 변경
+- [x] 앱 설명의 자동 누적 숨김 문구를 실제 동작인 신고 후 즉시 내 피드 숨김으로 변경
 - GitHub Issues URL `https://github.com/ThebestDev9325/-/issues`는 사용하지 않음
 - 지원 페이지는 PR 병합 후 GitHub Pages에서 공개되는지 확인
 
