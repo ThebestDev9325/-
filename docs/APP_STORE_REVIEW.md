@@ -7,7 +7,7 @@
 
 - [x] 앱 정보 → 연령 등급에서 익명 UGC 요구에 맞게 `18+`로 설정
 - [x] 앱 정보 → 연령 등급 → `Advertising`을 `Yes`로 설정
-- [x] Support URL을 `https://thebestdev9325.github.io/-/`로 변경
+- [ ] Support URL을 `https://thebestdev9325.github.io/-/ios-support.html`로 변경
 - GitHub Issues URL `https://github.com/ThebestDev9325/-/issues`는 사용하지 않음
 - 지원 페이지는 PR 병합 후 GitHub Pages에서 공개되는지 확인
 
@@ -23,7 +23,7 @@
 | 본인 게시물 삭제 | 게시물 메뉴와 내 공유 화면 |
 | 24시간 내 삭제·퇴출 | `deadlineAt` 신고함 + `resolve_content_report` |
 | 앱 내 연락처 | 설정의 고객지원 및 신고 이메일 |
-| 공개 Support URL | GitHub Pages 고객지원 페이지 |
+| 공개 Support URL | GitHub Pages iOS 전용 고객지원 페이지 |
 
 심사에 필요하지 않은 오프라인 신고 재전송, 별도 요청 멱등 레지스트리,
 시간당 신고 제한, 해결 신고 TTL, 자동 스케줄러는 사용하지 않는다.
@@ -87,7 +87,7 @@ We implemented all required safeguards for anonymous user-generated content.
 5. Users can delete their own posts from the post menu or the My Shares tab.
 6. Reports are recorded in a private moderation inbox and reviewed within 24 hours. Violating content is removed and the offending account is suspended.
 7. In-app contact information is available under Settings > Customer Support and Report.
-8. The public support page is https://thebestdev9325.github.io/-/
+8. The public iOS support page is https://thebestdev9325.github.io/-/ios-support.html
 
 The app is restricted to users aged 18 or older.
 ```
