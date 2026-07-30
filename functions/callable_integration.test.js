@@ -597,7 +597,8 @@ test(
 );
 
 test(
-    "reject skips a report that turns non-pending after the transaction read",
+    "reject skips a report that turns non-pending after the initial read " +
+    "before the transaction re-read",
     {skip: !hasEmulators},
     async () => {
       const ownerId = `reject-race-owner-${Date.now()}`;
