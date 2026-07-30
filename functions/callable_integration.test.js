@@ -597,6 +597,54 @@ test(
 );
 
 test(
+    "reject skips a report that turns non-pending after the transaction read",
+    {skip: !hasEmulators},
+    async () => {
+      const ownerId = `reject-race-owner-${Date.now()}`;
+      const postId = `reject-race-post-${Date.now()}`;
+      await createPost(postId, ownerId);
+      const reportReference = database.collection("contentReports")
+          .doc(`${postId}-report`);
+      await reportReference.set({
+        postId,
+        ownerId,
+        reporterId: "reporter",
+        status: "pending",
+        deadlineAt: Timestamp.now(),
+      });
+
+      // reportGroup이 pending을 읽은 뒤, rejectReports가 트랜잭션에서 재-get하기
+      // 전에 remove-and-suspend가 상태를 action_pending으로 전이시키는 race를
+      // 주입한다. 트랜잭션 재-get 구현은 현재 상태(action_pending)를 보고 skip하고,
+      // 초기 snapshot을 쓰는 단순 필터 구현이면 pending으로 판정해 no_violation을
+      // 덮어 이 테스트가 실패한다.
+      const result = await resolveContentReport({
+        database,
+        authentication: getAdminAuth(),
+        reportId: reportReference.id,
+        action: "reject",
+        actionedBy: "moderator@example.com",
+        hooks: {
+          beforeReject: async () => {
+            await reportReference.update({
+              status: "action_pending",
+              resolution: "post_removal_and_user_suspension_pending",
+            });
+          },
+        },
+      });
+      const report = await reportReference.get();
+
+      assert.equal(result.resolvedCount, 0);
+      assert.equal(report.data().status, "action_pending");
+      assert.equal(
+          report.data().resolution,
+          "post_removal_and_user_suspension_pending",
+      );
+    },
+);
+
+test(
     "moderation handles more than one Firestore transaction of reports",
     {skip: !hasEmulators},
     async () => {

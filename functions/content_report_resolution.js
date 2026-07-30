@@ -38,8 +38,10 @@ async function rejectReports(database, reports, actionedBy) {
   let rejectedCount = 0;
   for (const report of reports) {
     // 신고를 읽은 뒤 갱신하기까지 remove-and-suspend가 상태를 바꿀 수 있으므로,
-    // 트랜잭션 안에서 pending을 재확인해 action_pending/action_required로 전이된
-    // 신고를 no_violation으로 덮지 않는다.
+    // 트랜잭션 안에서 report를 다시 읽어 pending을 재확인하고,
+    // action_pending/action_required로 전이된 신고는 no_violation으로 덮지 않는다.
+    // (admin SDK 트랜잭션은 pessimistic lock이라 get~commit 사이 외부 write가
+    // 직렬화되므로, reportGroup의 초기 snapshot이 아닌 현재 상태로 판정한다.)
     const rejected = await database.runTransaction(async (transaction) => {
       const snapshot = await transaction.get(report.ref);
       if (!snapshot.exists || snapshot.data().status !== "pending") {
@@ -128,6 +130,7 @@ async function resolveContentReport({
   reportId,
   action,
   actionedBy,
+  hooks,
 }) {
   const group = await reportGroup(database, reportId);
   if (group.reports.length === 0) {
@@ -135,7 +138,10 @@ async function resolveContentReport({
   }
   if (action === "reject") {
     // reject는 아직 조치하지 않은 pending 신고에만 적용한다. 상태 재확인과
-    // 갱신은 rejectReports가 트랜잭션 안에서 원자적으로 수행한다.
+    // 갱신은 rejectReports가 트랜잭션 안에서 재-get으로 원자적으로 수행한다.
+    // hooks.beforeReject는 초기 read 이후 트랜잭션 재-get 이전에 상태를 전이시켜
+    // race를 결정적으로 재현하는 테스트 전용 지점으로, 프로덕션은 넘기지 않는다.
+    if (hooks && hooks.beforeReject) await hooks.beforeReject();
     const rejectedCount = await rejectReports(
         database,
         group.reports,
