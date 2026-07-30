@@ -622,7 +622,14 @@ class _AppShellState extends State<AppShell> {
     SharedPost post,
     CommunityReportReason reason,
   ) async {
+    // 서버 응답을 기다리는 동안 피드 스트림이 다시 emit해도 게시물이 되살아나지
+    // 않도록 숨김 상태를 먼저 반영하고, 신고 실패 시 이전 상태로 되돌린다.
+    final previousSafetyState = _communitySafetyState;
     setState(() {
+      _communitySafetyState = CommunitySafetyState(
+        hiddenPostIds: {..._communitySafetyState.hiddenPostIds, post.id},
+        blockedOwnerIds: _communitySafetyState.blockedOwnerIds,
+      );
       sharedPosts.removeWhere((item) => item.id == post.id);
     });
 
@@ -633,12 +640,6 @@ class _AppShellState extends State<AppShell> {
         ownerId: post.ownerId,
       );
       if (!mounted) return;
-      setState(() {
-        _communitySafetyState = CommunitySafetyState(
-          hiddenPostIds: {..._communitySafetyState.hiddenPostIds, post.id},
-          blockedOwnerIds: _communitySafetyState.blockedOwnerIds,
-        );
-      });
       try {
         await _communitySafetyStore.hidePost(currentUserId, post.id);
       } catch (_) {
@@ -647,6 +648,9 @@ class _AppShellState extends State<AppShell> {
       _showMessage('신고가 접수되었고 게시물을 피드에서 숨겼습니다.');
     } catch (_) {
       if (!mounted) return;
+      setState(() {
+        _communitySafetyState = previousSafetyState;
+      });
       await _subscribeToSharedPosts();
       if (!mounted) return;
       _showMessage('신고를 접수하지 못했습니다. 다시 시도해주세요.');

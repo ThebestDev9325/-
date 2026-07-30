@@ -120,8 +120,21 @@ async function resolveContentReport({
     return {...group, resolvedCount: 0};
   }
   if (action === "reject") {
-    await rejectReports(database, group, actionedBy);
-    return {...group, resolvedCount: group.reports.length};
+    // 이미 제거·정지가 진행(action_pending) 또는 정지 실패로 재시도 대기
+    // (action_required) 중인 신고는 no_violation으로 덮지 않는다. reject는
+    // 아직 조치하지 않은 pending 신고에만 적용한다.
+    const pendingReports = group.reports.filter(
+        (report) => report.data().status === "pending",
+    );
+    if (pendingReports.length === 0) {
+      return {...group, resolvedCount: 0};
+    }
+    await rejectReports(
+        database,
+        {...group, reports: pendingReports},
+        actionedBy,
+    );
+    return {...group, resolvedCount: pendingReports.length};
   }
   if (action !== "remove-and-suspend") {
     throw new Error(`Unsupported moderation action: ${action}`);

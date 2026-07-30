@@ -490,6 +490,77 @@ test(
 );
 
 test(
+    "reject leaves reports awaiting suspension retry untouched",
+    {skip: !hasEmulators},
+    async () => {
+      const ownerId = `reject-guard-owner-${Date.now()}`;
+      const postId = `reject-guard-post-${Date.now()}`;
+      await createPost(postId, ownerId);
+      const reportReference = database.collection("contentReports")
+          .doc(`${postId}-report`);
+      await reportReference.set({
+        postId,
+        ownerId,
+        reporterId: "reporter",
+        status: "action_required",
+        resolution: "post_removed_user_suspension_failed",
+        suspensionError: "temporary auth failure",
+        deadlineAt: Timestamp.now(),
+      });
+
+      const result = await resolveContentReport({
+        database,
+        authentication: getAdminAuth(),
+        reportId: reportReference.id,
+        action: "reject",
+        actionedBy: "moderator@example.com",
+      });
+      const report = await reportReference.get();
+
+      assert.equal(result.resolvedCount, 0);
+      assert.equal(report.data().status, "action_required");
+      assert.equal(
+          report.data().resolution,
+          "post_removed_user_suspension_failed",
+      );
+    },
+);
+
+test(
+    "reject records only pending reports as no violation",
+    {skip: !hasEmulators},
+    async () => {
+      const ownerId = `reject-pending-owner-${Date.now()}`;
+      const postId = `reject-pending-post-${Date.now()}`;
+      await createPost(postId, ownerId);
+      const reportReference = database.collection("contentReports")
+          .doc(`${postId}-report`);
+      await reportReference.set({
+        postId,
+        ownerId,
+        reporterId: "reporter",
+        status: "pending",
+        deadlineAt: Timestamp.now(),
+      });
+
+      const result = await resolveContentReport({
+        database,
+        authentication: getAdminAuth(),
+        reportId: reportReference.id,
+        action: "reject",
+        actionedBy: "moderator@example.com",
+      });
+      const report = await reportReference.get();
+      const post = await database.collection("sharedPosts").doc(postId).get();
+
+      assert.equal(result.resolvedCount, 1);
+      assert.equal(report.data().status, "rejected");
+      assert.equal(report.data().resolution, "no_violation");
+      assert.equal(post.exists, true);
+    },
+);
+
+test(
     "moderation handles more than one Firestore transaction of reports",
     {skip: !hasEmulators},
     async () => {
