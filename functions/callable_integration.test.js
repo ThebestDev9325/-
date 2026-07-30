@@ -527,6 +527,42 @@ test(
 );
 
 test(
+    "reject leaves reports mid removal untouched",
+    {skip: !hasEmulators},
+    async () => {
+      const ownerId = `reject-midway-owner-${Date.now()}`;
+      const postId = `reject-midway-post-${Date.now()}`;
+      await createPost(postId, ownerId);
+      const reportReference = database.collection("contentReports")
+          .doc(`${postId}-report`);
+      await reportReference.set({
+        postId,
+        ownerId,
+        reporterId: "reporter",
+        status: "action_pending",
+        resolution: "post_removal_and_user_suspension_pending",
+        deadlineAt: Timestamp.now(),
+      });
+
+      const result = await resolveContentReport({
+        database,
+        authentication: getAdminAuth(),
+        reportId: reportReference.id,
+        action: "reject",
+        actionedBy: "moderator@example.com",
+      });
+      const report = await reportReference.get();
+
+      assert.equal(result.resolvedCount, 0);
+      assert.equal(report.data().status, "action_pending");
+      assert.equal(
+          report.data().resolution,
+          "post_removal_and_user_suspension_pending",
+      );
+    },
+);
+
+test(
     "reject records only pending reports as no violation",
     {skip: !hasEmulators},
     async () => {

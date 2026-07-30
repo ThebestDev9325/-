@@ -34,14 +34,28 @@ async function updateReports(database, reports, data) {
   await writer.close();
 }
 
-async function rejectReports(database, group, actionedBy) {
-  const resolvedAt = Timestamp.now();
-  await updateReports(database, group.reports, {
-    status: "rejected",
-    resolution: "no_violation",
-    resolvedAt,
-    actionedBy,
-  });
+async function rejectReports(database, reports, actionedBy) {
+  let rejectedCount = 0;
+  for (const report of reports) {
+    // 신고를 읽은 뒤 갱신하기까지 remove-and-suspend가 상태를 바꿀 수 있으므로,
+    // 트랜잭션 안에서 pending을 재확인해 action_pending/action_required로 전이된
+    // 신고를 no_violation으로 덮지 않는다.
+    const rejected = await database.runTransaction(async (transaction) => {
+      const snapshot = await transaction.get(report.ref);
+      if (!snapshot.exists || snapshot.data().status !== "pending") {
+        return false;
+      }
+      transaction.update(report.ref, {
+        status: "rejected",
+        resolution: "no_violation",
+        resolvedAt: Timestamp.now(),
+        actionedBy,
+      });
+      return true;
+    });
+    if (rejected) rejectedCount += 1;
+  }
+  return rejectedCount;
 }
 
 async function markReportsActionPending(database, group, actionedBy) {
@@ -120,21 +134,14 @@ async function resolveContentReport({
     return {...group, resolvedCount: 0};
   }
   if (action === "reject") {
-    // 이미 제거·정지가 진행(action_pending) 또는 정지 실패로 재시도 대기
-    // (action_required) 중인 신고는 no_violation으로 덮지 않는다. reject는
-    // 아직 조치하지 않은 pending 신고에만 적용한다.
-    const pendingReports = group.reports.filter(
-        (report) => report.data().status === "pending",
-    );
-    if (pendingReports.length === 0) {
-      return {...group, resolvedCount: 0};
-    }
-    await rejectReports(
+    // reject는 아직 조치하지 않은 pending 신고에만 적용한다. 상태 재확인과
+    // 갱신은 rejectReports가 트랜잭션 안에서 원자적으로 수행한다.
+    const rejectedCount = await rejectReports(
         database,
-        {...group, reports: pendingReports},
+        group.reports,
         actionedBy,
     );
-    return {...group, resolvedCount: pendingReports.length};
+    return {...group, resolvedCount: rejectedCount};
   }
   if (action !== "remove-and-suspend") {
     throw new Error(`Unsupported moderation action: ${action}`);
