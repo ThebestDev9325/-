@@ -1,10 +1,54 @@
 const {onCall, HttpsError} = require("firebase-functions/v2/https");
+const logger = require("firebase-functions/logger");
 const {initializeApp} = require("firebase-admin/app");
 const {getAuth} = require("firebase-admin/auth");
-const {getFirestore} = require("firebase-admin/firestore");
+const {getFirestore, Timestamp} = require("firebase-admin/firestore");
+const {deleteAccountData} = require("./account_deletion");
+const {isValidSharedPost} = require("./content_moderation");
+const {
+  legacyReportDocumentId,
+  reportDocumentId,
+} = require("./content_report_identity");
 
 initializeApp();
 const db = getFirestore();
+const reportReasons = new Set([
+  "harassment",
+  "hate",
+  "violence",
+  "self_harm",
+  "sexual",
+  "personal_information",
+  "illegal",
+  "spam",
+  "other",
+  "legacy_unspecified",
+]);
+const reportDeadlineMilliseconds = 24 * 60 * 60 * 1000;
+
+function validDocumentId(value) {
+  return typeof value === "string" &&
+    value.length > 0 &&
+    value.length <= 128 &&
+    !value.includes("/");
+}
+
+async function requireConnectedAccount(request) {
+  const uid = request.auth.uid;
+  const isKakaoAccount = uid.startsWith("kakao:") &&
+    request.auth.token.provider === "kakao";
+  if (isKakaoAccount) return;
+  const user = await getAuth().getUser(uid);
+  const hasAppleProvider = user.providerData.some(
+      (provider) => provider.providerId === "apple.com",
+  );
+  if (!hasAppleProvider) {
+    throw new HttpsError(
+        "permission-denied",
+        "공유하려면 카카오 또는 Apple 계정 연결이 필요합니다.",
+    );
+  }
+}
 
 async function kakaoUserId(accessToken) {
   if (typeof accessToken !== "string" || accessToken.length < 20) {
@@ -30,63 +74,228 @@ exports.signInWithKakao = onCall({region: "asia-northeast3"}, async (request) =>
   return {customToken};
 });
 
+exports.publishSharedRecord = onCall(
+    {region: "asia-northeast3"},
+    async (request) => {
+      if (!request.auth) {
+        throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
+      }
+      await requireConnectedAccount(request);
+      const recordId = request.data && request.data.recordId;
+      if (!validDocumentId(recordId)) {
+        throw new HttpsError(
+            "invalid-argument",
+            "공유할 마음 기록을 확인할 수 없습니다.",
+        );
+      }
+      const uid = request.auth.uid;
+      const recordRef = db.collection("users").doc(uid)
+          .collection("records").doc(recordId);
+      const postRef = db.collection("sharedPosts").doc(recordId);
+      const suspensionRef = db.collection("moderationSuspensions").doc(uid);
+      await db.runTransaction(async (transaction) => {
+        const [record, existingPost, suspension] = await transaction.getAll(
+            recordRef,
+            postRef,
+            suspensionRef,
+        );
+        if (suspension.exists) {
+          throw new HttpsError(
+              "permission-denied",
+              "정지된 계정은 사연을 공유할 수 없습니다.",
+          );
+        }
+        if (!record.exists) {
+          throw new HttpsError("not-found", "공유할 마음 기록이 없습니다.");
+        }
+        if (existingPost.exists) {
+          if (existingPost.data().ownerId !== uid) {
+            throw new HttpsError(
+                "already-exists",
+                "같은 식별자의 공유 글이 이미 존재합니다.",
+            );
+          }
+          transaction.update(recordRef, {shared: true});
+          return;
+        }
+        const data = record.data();
+        const post = {
+          ownerId: uid,
+          createdAt: data.createdAt,
+          category: data.category,
+          moodEmoji: data.moodEmoji,
+          moodLabel: data.moodLabel,
+          text: data.text,
+          storyId: data.storyId,
+          shared: true,
+          reactions: [0, 0, 0],
+          reactedBy: [],
+          reportCount: 0,
+        };
+        if (!isValidSharedPost(post)) {
+          throw new HttpsError(
+              "invalid-argument",
+              "공유할 수 없는 내용이 포함되어 있습니다.",
+          );
+        }
+        transaction.set(postRef, post);
+        transaction.update(recordRef, {shared: true});
+      });
+      return {published: true};
+    },
+);
+
 exports.reportSharedPost = onCall({region: "asia-northeast3"}, async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
   }
   const postId = request.data && request.data.postId;
-  if (typeof postId !== "string" || postId.length === 0) {
+  if (!validDocumentId(postId)) {
     throw new HttpsError("invalid-argument", "신고할 사연을 확인할 수 없습니다.");
   }
+  const requestedReason = request.data && request.data.reason;
+  const reason = requestedReason == null ? "legacy_unspecified" : requestedReason;
+  if (!reportReasons.has(reason)) {
+    throw new HttpsError("invalid-argument", "신고 사유가 올바르지 않습니다.");
+  }
+  const expectedOwnerId = request.data && request.data.ownerId;
+  if (expectedOwnerId != null && !validDocumentId(expectedOwnerId)) {
+    throw new HttpsError(
+        "invalid-argument",
+        "신고 대상 사연의 소유자가 올바르지 않습니다.",
+    );
+  }
   const uid = request.auth.uid;
-  const ref = db.collection("sharedPosts").doc(postId);
-  return db.runTransaction(async (transaction) => {
-    const snapshot = await transaction.get(ref);
+  const postRef = db.collection("sharedPosts").doc(postId);
+  const suspensionRef = db.collection("moderationSuspensions").doc(uid);
+  const now = Timestamp.now();
+  const result = await db.runTransaction(async (transaction) => {
+    const [snapshot, suspension] = await transaction.getAll(
+        postRef,
+        suspensionRef,
+    );
+    if (suspension.exists) {
+      throw new HttpsError(
+          "permission-denied",
+          "정지된 계정은 신고할 수 없습니다.",
+      );
+    }
     if (!snapshot.exists) {
-      return {reportCount: 5, removed: true, alreadyReported: false};
-    }
-    const data = snapshot.data();
-    if (data.ownerId === uid) {
-      throw new HttpsError("failed-precondition", "내 사연은 신고할 수 없습니다.");
-    }
-    const reportedBy = Array.isArray(data.reportedBy) ? data.reportedBy : [];
-    if (reportedBy.includes(uid)) {
       return {
-        reportCount: Number(data.reportCount) || reportedBy.length,
-        removed: false,
-        alreadyReported: true,
+        reportCount: 5,
+        removed: true,
+        alreadyReported: false,
+        recorded: false,
       };
     }
-    const nextReportedBy = [...reportedBy, uid];
-    const reportCount = nextReportedBy.length;
-    if (reportCount >= 5) {
-      transaction.delete(ref);
-      return {reportCount, removed: true, alreadyReported: false};
+    const data = snapshot.data();
+    const ownerId = data.ownerId;
+    if (!validDocumentId(ownerId)) {
+      throw new HttpsError(
+          "failed-precondition",
+          "신고 대상 사연의 소유자를 확인할 수 없습니다.",
+      );
     }
-    transaction.update(ref, {reportedBy: nextReportedBy, reportCount});
-    return {reportCount, removed: false, alreadyReported: false};
-  });
-});
+    if (ownerId === uid) {
+      throw new HttpsError("failed-precondition", "내 사연은 신고할 수 없습니다.");
+    }
+    if (expectedOwnerId != null && expectedOwnerId !== ownerId) {
+      return {
+        reportCount: Number(data.reportCount) || 0,
+        removed: true,
+        alreadyReported: false,
+        recorded: false,
+      };
+    }
+    const reportRef = db.collection("contentReports")
+        .doc(reportDocumentId(postId, ownerId, uid));
+    const legacyReportRef = db.collection("contentReports")
+        .doc(legacyReportDocumentId(postId, uid));
+    const [existingReport, legacyReport] = await transaction.getAll(
+        reportRef,
+        legacyReportRef,
+    );
+    const hasMatchingLegacyReport = legacyReport.exists &&
+      legacyReport.data().ownerId === ownerId;
+    if (existingReport.exists || hasMatchingLegacyReport) {
+      return {
+        reportCount: Number(data.reportCount) || 0,
+        removed: false,
+        alreadyReported: true,
+        recorded: false,
+      };
+    }
+    const legacyReporters = Array.isArray(data.reportedBy) ?
+      data.reportedBy.filter((value) => typeof value === "string") :
+      [];
+    if (legacyReporters.includes(uid)) {
+      transaction.create(reportRef, {
+        postId,
+        ownerId,
+        reporterId: uid,
+        reason: "legacy_unspecified",
+        status: "pending",
+        createdAt: now,
+        deadlineAt: Timestamp.fromMillis(
+            now.toMillis() + reportDeadlineMilliseconds,
+        ),
+        snapshot: {
+          category: String(data.category || ""),
+          text: String(data.text || "").slice(0, 2000),
+          createdAt: data.createdAt || now,
+        },
+        migratedAt: now,
+      });
+      transaction.update(postRef, {
+        reportedBy: legacyReporters.filter((reporterId) => reporterId !== uid),
+      });
+      return {
+        reportCount: Number(data.reportCount) || legacyReporters.length,
+        removed: false,
+        alreadyReported: true,
+        recorded: true,
+      };
+    }
 
-async function deleteAccountData(uid) {
-  const userRef = db.collection("users").doc(uid);
-  const userSnapshot = await userRef.get();
-  const nickname = userSnapshot.data() && userSnapshot.data().nickname;
-  const sharedSnapshot = await db.collection("sharedPosts")
-      .where("ownerId", "==", uid).get();
-  const writer = db.bulkWriter();
-  for (const shared of sharedSnapshot.docs) writer.delete(shared.ref);
-  if (typeof nickname === "string" && nickname.trim()) {
-    const nicknameRef = db.collection("nicknames").doc(nickname.trim().toLowerCase());
-    const nicknameSnapshot = await nicknameRef.get();
-    if (nicknameSnapshot.data() && nicknameSnapshot.data().ownerId === uid) {
-      writer.delete(nicknameRef);
-    }
+    const reportCount = (Number(data.reportCount) || 0) + 1;
+    transaction.create(reportRef, {
+      postId,
+      ownerId,
+      reporterId: uid,
+      reason,
+      status: "pending",
+      createdAt: now,
+      deadlineAt: Timestamp.fromMillis(
+          now.toMillis() + reportDeadlineMilliseconds,
+      ),
+      snapshot: {
+        category: String(data.category || ""),
+        text: String(data.text || "").slice(0, 2000),
+        createdAt: data.createdAt || now,
+      },
+    });
+    transaction.update(postRef, {
+      reportCount,
+    });
+    return {
+      reportCount,
+      removed: false,
+      alreadyReported: false,
+      recorded: true,
+    };
+  });
+  if (result.recorded) {
+    logger.warn("content_report_received", {
+      postId,
+      deadlineAt: now.toMillis() + reportDeadlineMilliseconds,
+    });
   }
-  await writer.close();
-  await db.recursiveDelete(userRef);
-  await getAuth().deleteUser(uid);
-}
+  return {
+    reportCount: result.reportCount,
+    removed: result.removed,
+    alreadyReported: result.alreadyReported,
+  };
+});
 
 exports.deleteKakaoAccount = onCall({region: "asia-northeast3"}, async (request) => {
   if (!request.auth) {
@@ -99,7 +308,11 @@ exports.deleteKakaoAccount = onCall({region: "asia-northeast3"}, async (request)
     throw new HttpsError("permission-denied", "현재 로그인한 카카오 계정과 일치하지 않습니다.");
   }
 
-  await deleteAccountData(uid);
+  await deleteAccountData({
+    database: db,
+    authentication: getAuth(),
+    uid,
+  });
   return {deleted: true};
 });
 
@@ -116,6 +329,10 @@ exports.deleteAppleAccount = onCall({region: "asia-northeast3"}, async (request)
     throw new HttpsError("permission-denied", "Apple 계정 연결을 확인할 수 없습니다.");
   }
 
-  await deleteAccountData(uid);
+  await deleteAccountData({
+    database: db,
+    authentication: getAuth(),
+    uid,
+  });
   return {deleted: true};
 });

@@ -10,5 +10,6 @@ android/key.properties
 **/*.jks
 **/*.keystore
 firebase-debug.log
+firestore-debug.log
 .idea/
 *.iml

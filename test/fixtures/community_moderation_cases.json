@@ -1,0 +1,106 @@
+[
+  {
+    "name": "normal emotion",
+    "text": "오늘 회사에서 속상한 일이 있었어요.",
+    "category": "직장",
+    "moodEmoji": "😤",
+    "moodLabel": "많이 화남",
+    "expected": null
+  },
+  {
+    "name": "phone number",
+    "text": "연락처는 010-1234-5678입니다.",
+    "category": "기타",
+    "moodEmoji": "😐",
+    "moodLabel": "답답함",
+    "expected": "personal_information"
+  },
+  {
+    "name": "email address",
+    "text": "test@example.com으로 연락해.",
+    "category": "기타",
+    "moodEmoji": "😐",
+    "moodLabel": "답답함",
+    "expected": "personal_information"
+  },
+  {
+    "name": "harassment",
+    "text": "저 병신 때문에 화가 난다.",
+    "category": "타인",
+    "moodEmoji": "🤬",
+    "moodLabel": "폭발 직전",
+    "expected": "harassment"
+  },
+  {
+    "name": "zero width bypass",
+    "text": "저 병​신 때문에 화가 난다.",
+    "category": "타인",
+    "moodEmoji": "🤬",
+    "moodLabel": "폭발 직전",
+    "expected": "harassment"
+  },
+  {
+    "name": "hate",
+    "text": "김치녀는 전부 똑같다.",
+    "category": "타인",
+    "moodEmoji": "🤬",
+    "moodLabel": "폭발 직전",
+    "expected": "hate"
+  },
+  {
+    "name": "violence",
+    "text": "찾아가서 죽여버리겠다.",
+    "category": "타인",
+    "moodEmoji": "🤬",
+    "moodLabel": "폭발 직전",
+    "expected": "violence"
+  },
+  {
+    "name": "self-harm encouragement",
+    "text": "너는 그냥 자살해.",
+    "category": "타인",
+    "moodEmoji": "🤬",
+    "moodLabel": "폭발 직전",
+    "expected": "self_harm"
+  },
+  {
+    "name": "sexual",
+    "text": "불법 야동을 같이 보자.",
+    "category": "기타",
+    "moodEmoji": "😤",
+    "moodLabel": "많이 화남",
+    "expected": "sexual"
+  },
+  {
+    "name": "illegal",
+    "text": "마약 판매하는 곳을 안다.",
+    "category": "기타",
+    "moodEmoji": "😤",
+    "moodLabel": "많이 화남",
+    "expected": "illegal"
+  },
+  {
+    "name": "spam",
+    "text": "수익 보장 오픈채팅으로 들어오세요.",
+    "category": "기타",
+    "moodEmoji": "🙂",
+    "moodLabel": "조금 괜찮음",
+    "expected": "spam"
+  },
+  {
+    "name": "invalid category",
+    "text": "평범한 문장입니다.",
+    "category": "<script>alert(1)</script>",
+    "moodEmoji": "😐",
+    "moodLabel": "답답함",
+    "expected": "invalid_metadata"
+  },
+  {
+    "name": "invalid mood",
+    "text": "평범한 문장입니다.",
+    "category": "기타",
+    "moodEmoji": "👿",
+    "moodLabel": "위험",
+    "expected": "invalid_metadata"
+  }
+]

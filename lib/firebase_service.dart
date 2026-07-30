@@ -1,21 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 
+import 'community_safety.dart';
 import 'data/story_db.dart';
 import 'models.dart';
-
-class ReportResult {
-  final int reportCount;
-  final bool removed;
-  final bool alreadyReported;
-
-  const ReportResult({
-    required this.reportCount,
-    required this.removed,
-    required this.alreadyReported,
-  });
-}
 
 class AppFirebaseService {
   AppFirebaseService._();
@@ -96,66 +86,66 @@ class AppFirebaseService {
     return _db
         .collection('sharedPosts')
         .orderBy('createdAt', descending: true)
-        .limit(100)
+        .limit(300)
         .snapshots()
-        .map((snapshot) => snapshot.docs.map(_postFromDoc).toList());
+        .map((snapshot) {
+      final posts = <SharedPost>[];
+      for (final document in snapshot.docs) {
+        final post = _tryPostFromDoc(document);
+        if (post != null) posts.add(post);
+      }
+      return posts;
+    });
   }
 
   Future<void> saveRecord(EmotionRecord record) async {
     final ownerId = userId;
-    final data = <String, Object?>{
-      'ownerId': ownerId,
-      'createdAt': Timestamp.fromDate(record.createdAt),
-      'category': record.category,
-      'moodEmoji': record.moodEmoji,
-      'moodLabel': record.moodLabel,
-      'text': record.text,
-      'storyId': record.story.id,
-      'shared': record.shared,
-    };
-    final batch = _db.batch();
-    batch.set(
-      _db.collection('users').doc(ownerId).collection('records').doc(record.id),
-      data,
-    );
-    if (record.shared) {
-      batch.set(_db.collection('sharedPosts').doc(record.id), {
-        ...data,
-        'reactions': [0, 0, 0],
-        'reactedBy': <String>[],
-        'reportCount': 0,
-        'reportedBy': <String>[],
-      });
-    }
-    await batch.commit();
+    await _db
+        .collection('users')
+        .doc(ownerId)
+        .collection('records')
+        .doc(record.id)
+        .set(
+          _recordData(record, shared: false),
+        );
+    if (record.shared) await _publishRecord(record.id);
   }
 
   Future<void> shareRecord(EmotionRecord record) async {
     final ownerId = userId;
-    final data = <String, Object?>{
-      'ownerId': ownerId,
+    await _db
+        .collection('users')
+        .doc(ownerId)
+        .collection('records')
+        .doc(record.id)
+        .set(
+          _recordData(record, shared: false),
+          SetOptions(merge: true),
+        );
+    await _publishRecord(record.id);
+  }
+
+  Map<String, Object?> _recordData(
+    EmotionRecord record, {
+    required bool shared,
+  }) {
+    return {
+      'ownerId': userId,
       'createdAt': Timestamp.fromDate(record.createdAt),
       'category': record.category,
       'moodEmoji': record.moodEmoji,
       'moodLabel': record.moodLabel,
       'text': record.text,
       'storyId': record.story.id,
-      'shared': true,
+      'shared': shared,
     };
-    final batch = _db.batch();
-    batch.set(
-      _db.collection('users').doc(ownerId).collection('records').doc(record.id),
-      data,
-      SetOptions(merge: true),
-    );
-    batch.set(_db.collection('sharedPosts').doc(record.id), {
-      ...data,
-      'reactions': [0, 0, 0],
-      'reactedBy': <String>[],
-      'reportCount': 0,
-      'reportedBy': <String>[],
-    });
-    await batch.commit();
+  }
+
+  Future<void> _publishRecord(String recordId) async {
+    final callable = FirebaseFunctions.instanceFor(
+      region: 'asia-northeast3',
+    ).httpsCallable('publishSharedRecord');
+    await callable.call<void>(<String, dynamic>{'recordId': recordId});
   }
 
   Future<void> react(SharedPost post, int reactionIndex) async {
@@ -179,17 +169,37 @@ class AppFirebaseService {
     });
   }
 
-  Future<ReportResult> report(SharedPost post) async {
+  Future<void> report(
+    String postId,
+    CommunityReportReason reason, {
+    String? ownerId,
+  }) async {
     final callable = FirebaseFunctions.instanceFor(
       region: 'asia-northeast3',
     ).httpsCallable('reportSharedPost');
-    final response = await callable.call(<String, dynamic>{'postId': post.id});
-    final data = Map<String, dynamic>.from(response.data as Map);
-    return ReportResult(
-      reportCount: data['reportCount'] as int? ?? post.reportCount,
-      removed: data['removed'] as bool? ?? false,
-      alreadyReported: data['alreadyReported'] as bool? ?? false,
-    );
+    await callable.call<void>(<String, dynamic>{
+      'postId': postId,
+      'reason': reason.wireName,
+      if (ownerId != null) 'ownerId': ownerId,
+    });
+  }
+
+  Future<void> deleteSharedPost(String postId) async {
+    final postReference = _db.collection('sharedPosts').doc(postId);
+    final recordReference =
+        _db.collection('users').doc(userId).collection('records').doc(postId);
+    await _db.runTransaction((transaction) async {
+      final post = await transaction.get(postReference);
+      if (!post.exists) return;
+      if (post.data()?['ownerId'] != userId) {
+        throw StateError('내 공유 글만 삭제할 수 있습니다.');
+      }
+      final record = await transaction.get(recordReference);
+      transaction.delete(postReference);
+      if (record.exists) {
+        transaction.update(recordReference, {'shared': false});
+      }
+    });
   }
 
   Future<void> submitStoryFeedback(String storyId, String feedback) async {
@@ -277,23 +287,54 @@ class AppFirebaseService {
     );
   }
 
-  SharedPost _postFromDoc(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
+  SharedPost? _tryPostFromDoc(
+    QueryDocumentSnapshot<Map<String, dynamic>> doc,
+  ) {
     final data = doc.data();
-    final reactedBy = List<String>.from(data['reactedBy'] as List? ?? const []);
-    final reportedBy = List<String>.from(
-      data['reportedBy'] as List? ?? const [],
-    );
+    final createdAt = data['createdAt'];
+    final reactionsValue = data['reactions'];
+    final reactedByValue = data['reactedBy'];
+    final ownerId = data['ownerId'];
+    final category = data['category'];
+    final text = data['text'];
+    final moodEmoji = data['moodEmoji'];
+    final moodLabel = data['moodLabel'];
+    if (createdAt is! Timestamp ||
+        reactionsValue is! List ||
+        reactionsValue.length != 3 ||
+        reactionsValue.any((reaction) => reaction is! int) ||
+        reactedByValue is! List ||
+        reactedByValue.any((user) => user is! String) ||
+        ownerId is! String ||
+        category is! String ||
+        text is! String ||
+        moodEmoji is! String ||
+        moodLabel is! String) {
+      debugPrint('Skipped invalid shared post: ${doc.id}');
+      return null;
+    }
+    if (findCommunityContentViolation(
+          text: text,
+          category: category,
+          moodEmoji: moodEmoji,
+          moodLabel: moodLabel,
+        ) !=
+        null) {
+      return null;
+    }
+    final reactedBy = List<String>.from(reactedByValue);
     return SharedPost(
       id: doc.id,
-      ownerId: data['ownerId'] as String? ?? '',
-      category: data['category'] as String? ?? '기타',
-      text: data['text'] as String? ?? '',
-      moodEmoji: data['moodEmoji'] as String? ?? '😐',
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
-      reactions: List<int>.from(data['reactions'] as List? ?? const [0, 0, 0]),
+      ownerId: ownerId,
+      category: category,
+      text: text,
+      moodEmoji: moodEmoji,
+      moodLabel: moodLabel,
+      createdAt: createdAt.toDate(),
+      reactions: List<int>.from(reactionsValue),
       myReaction: reactedBy.contains(userId) ? 0 : null,
       reportCount: data['reportCount'] as int? ?? 0,
-      reportedByMe: reportedBy.contains(userId),
+      reportedByMe: false,
     );
   }
 

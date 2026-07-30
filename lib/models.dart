@@ -64,6 +64,7 @@ class SharedPost {
   final String category;
   final String text;
   final String moodEmoji;
+  final String moodLabel;
   final DateTime createdAt;
   final List<int> reactions;
   int? myReaction;
@@ -76,6 +77,7 @@ class SharedPost {
     required this.category,
     required this.text,
     required this.moodEmoji,
+    this.moodLabel = '',
     required this.createdAt,
     List<int>? reactions,
     this.myReaction,

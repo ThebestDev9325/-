@@ -7,6 +7,7 @@ import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'apple_auth_service.dart';
 import 'audio_service.dart';
+import 'community_safety.dart';
 import 'daily_positive_store.dart';
 import 'data/daily_quotes.dart';
 import 'data/positive_stories.dart';
@@ -18,6 +19,7 @@ import 'legal.dart';
 import 'models.dart';
 import 'plant_progress_store.dart';
 import 'positive_bookmark_store.dart';
+import 'shared_preferences_community_safety_store.dart';
 import 'text_layout.dart';
 
 Future<void> main() async {
@@ -83,12 +85,9 @@ class _ChameulinAppState extends State<ChameulinApp>
         useMaterial3: true,
       ),
       darkTheme: ThemeData.dark(useMaterial3: true).copyWith(
-        textTheme: ThemeData.dark()
-            .textTheme
-            .apply(fontFamily: 'Pretendard'),
-        primaryTextTheme: ThemeData.dark()
-            .primaryTextTheme
-            .apply(fontFamily: 'Pretendard'),
+        textTheme: ThemeData.dark().textTheme.apply(fontFamily: 'Pretendard'),
+        primaryTextTheme:
+            ThemeData.dark().primaryTextTheme.apply(fontFamily: 'Pretendard'),
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF8FAA66),
           brightness: Brightness.dark,
@@ -156,6 +155,7 @@ class AppShell extends StatefulWidget {
   final ValueChanged<double> onEffectVolume;
   final ValueChanged<double> onBackgroundVolume;
   final PlantProgressStore? plantStore;
+  final CommunitySafetyStore? communitySafetyStore;
 
   const AppShell({
     super.key,
@@ -170,6 +170,7 @@ class AppShell extends StatefulWidget {
     required this.onEffectVolume,
     required this.onBackgroundVolume,
     this.plantStore,
+    this.communitySafetyStore,
   });
 
   @override
@@ -186,12 +187,16 @@ class _AppShellState extends State<AppShell> {
   Timer? _midnightTimer;
   final sharedPosts = <SharedPost>[];
   late final PlantProgressStore _plantStore;
+  late final CommunitySafetyStore _communitySafetyStore;
+  CommunitySafetyState _communitySafetyState = const CommunitySafetyState();
   int _plantResetVersion = 0;
 
   @override
   void initState() {
     super.initState();
     _plantStore = widget.plantStore ?? SharedPreferencesPlantProgressStore();
+    _communitySafetyStore =
+        widget.communitySafetyStore ?? SharedPreferencesCommunitySafetyStore();
     unawaited(AppAudioService.instance.setBgm(AppBgm.home));
     _scheduleMidnightRefresh();
     unawaited(_initialize());
@@ -220,9 +225,11 @@ class _AppShellState extends State<AppShell> {
       final savedRecords = await AppFirebaseService.instance.loadRecords();
       final accountLabel =
           await AppFirebaseService.instance.linkedAccountLabel();
+      final safetyState = await _communitySafetyStore.activate(userId);
       if (!mounted) return;
       setState(() {
         currentUserId = userId;
+        _communitySafetyState = safetyState;
         linkedAccountLabel = accountLabel;
         if (savedNickname != null) nickname = savedNickname;
         records
@@ -243,7 +250,16 @@ class _AppShellState extends State<AppShell> {
         setState(() {
           sharedPosts
             ..clear()
-            ..addAll(posts);
+            ..addAll(
+              posts
+                  .where(
+                    (post) => _communitySafetyState.allows(
+                      postId: post.id,
+                      ownerId: post.ownerId,
+                    ),
+                  )
+                  .take(100),
+            );
         });
       },
       onError: (Object error, StackTrace stackTrace) {
@@ -276,10 +292,14 @@ class _AppShellState extends State<AppShell> {
         posts: sharedPosts,
         currentUserId: currentUserId,
         onReact: _react,
-        onReport: _report,
+        onReportWithReason: _report,
+        onHide: _hidePost,
+        onBlock: _blockAuthor,
+        onDelete: _deleteSharedPost,
       ),
       MySharePage(
         posts: sharedPosts.where((p) => p.ownerId == currentUserId).toList(),
+        onDelete: _deleteSharedPost,
       ),
       const PositivePage(),
       SettingsPage(
@@ -341,6 +361,7 @@ class _AppShellState extends State<AppShell> {
       return;
     }
     try {
+      final deletedUserId = currentUserId;
       final provider = await AppFirebaseService.instance.linkedProvider();
       if (provider == 'apple') {
         await AppleAuthService.instance.deleteAccount();
@@ -356,7 +377,11 @@ class _AppShellState extends State<AppShell> {
         currentUserId = 'connecting';
         records.clear();
         sharedPosts.clear();
+        _communitySafetyState = const CommunitySafetyState();
       });
+      if (deletedUserId != 'connecting') {
+        await _communitySafetyStore.clear(deletedUserId);
+      }
       await _connectFirebase();
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -399,6 +424,7 @@ class _AppShellState extends State<AppShell> {
         : nickname;
     final activeAccountLabel =
         await AppFirebaseService.instance.linkedAccountLabel();
+    await _syncSafetyAfterAccountChange();
     if (!mounted) return;
     final record = EmotionRecord(
       id: DateTime.now().microsecondsSinceEpoch.toString(),
@@ -461,6 +487,16 @@ class _AppShellState extends State<AppShell> {
 
   Future<bool> _shareSavedRecord(EmotionRecord record) async {
     if (record.shared) return true;
+    final violation = findCommunityContentViolation(
+      text: record.text,
+      category: record.category,
+      moodEmoji: record.moodEmoji,
+      moodLabel: record.moodLabel,
+    );
+    if (violation != null) {
+      _showMessage(violation.message);
+      return false;
+    }
     if (!await ensureCommunityPolicy(context) || !mounted) return false;
     if (!AppFirebaseService.instance.hasLinkedAccount) {
       final linked = await Navigator.of(context).push<bool>(
@@ -469,6 +505,7 @@ class _AppShellState extends State<AppShell> {
         ),
       );
       if (!mounted || linked != true) return false;
+      await _syncSafetyAfterAccountChange();
     }
 
     final sharedRecord = EmotionRecord(
@@ -510,6 +547,22 @@ class _AppShellState extends State<AppShell> {
     }
   }
 
+  Future<void> _syncSafetyAfterAccountChange() async {
+    final activeUserId = AppFirebaseService.instance.currentUserId;
+    if (activeUserId == null ||
+        currentUserId == 'connecting' ||
+        activeUserId == currentUserId) {
+      return;
+    }
+    final migrated = await _communitySafetyStore.activate(activeUserId);
+    if (!mounted) return;
+    setState(() {
+      currentUserId = activeUserId;
+      _communitySafetyState = migrated;
+    });
+    await _subscribeToSharedPosts();
+  }
+
   int _todayWritingCount() {
     final now = DateTime.now();
     return records.where((record) {
@@ -529,32 +582,140 @@ class _AppShellState extends State<AppShell> {
     unawaited(AppFirebaseService.instance.react(post, reactionIndex));
   }
 
-  Future<void> _report(SharedPost post) async {
+  Future<void> _hidePost(SharedPost post) async {
+    setState(() {
+      _communitySafetyState = CommunitySafetyState(
+        hiddenPostIds: {..._communitySafetyState.hiddenPostIds, post.id},
+        blockedOwnerIds: _communitySafetyState.blockedOwnerIds,
+      );
+      sharedPosts.removeWhere((item) => item.id == post.id);
+    });
     try {
-      final result = await AppFirebaseService.instance.report(post);
+      await _communitySafetyStore.hidePost(currentUserId, post.id);
+      _showMessage('이 게시물을 피드에서 숨겼습니다.');
+    } catch (_) {
+      _showMessage('현재 화면에서는 숨겼지만 저장하지 못했습니다.');
+    }
+  }
+
+  Future<void> _blockAuthor(SharedPost post) async {
+    if (post.ownerId == currentUserId) return;
+    setState(() {
+      _communitySafetyState = CommunitySafetyState(
+        hiddenPostIds: _communitySafetyState.hiddenPostIds,
+        blockedOwnerIds: {
+          ..._communitySafetyState.blockedOwnerIds,
+          post.ownerId,
+        },
+      );
+      sharedPosts.removeWhere((item) => item.ownerId == post.ownerId);
+    });
+    try {
+      await _communitySafetyStore.blockAuthor(currentUserId, post.ownerId);
+      _showMessage('이 작성자의 게시물을 차단했습니다.');
+    } catch (_) {
+      _showMessage('현재 화면에서는 차단했지만 저장하지 못했습니다.');
+    }
+  }
+
+  Future<void> _report(
+    SharedPost post,
+    CommunityReportReason reason,
+  ) async {
+    // 서버 응답을 기다리는 동안 피드 스트림이 다시 emit해도 게시물이 되살아나지
+    // 않도록 숨김 상태를 먼저 반영한다. 이미 숨겨져 있던 게시물이면 실패해도 숨김을
+    // 유지하고, 이번 신고로 새로 숨긴 경우에만 되돌린다.
+    final wasHiddenBeforeReport =
+        _communitySafetyState.hiddenPostIds.contains(post.id);
+    setState(() {
+      _communitySafetyState = CommunitySafetyState(
+        hiddenPostIds: {..._communitySafetyState.hiddenPostIds, post.id},
+        blockedOwnerIds: _communitySafetyState.blockedOwnerIds,
+      );
+      sharedPosts.removeWhere((item) => item.id == post.id);
+    });
+
+    try {
+      await AppFirebaseService.instance.report(
+        post.id,
+        reason,
+        ownerId: post.ownerId,
+      );
+      if (!mounted) return;
+      try {
+        await _communitySafetyStore.hidePost(currentUserId, post.id);
+      } catch (_) {
+        // The current feed remains hidden after the server accepted the report.
+      }
+      _showMessage('신고가 접수되었고 게시물을 피드에서 숨겼습니다.');
+    } catch (_) {
+      if (!mounted) return;
+      if (!wasHiddenBeforeReport) {
+        // 대기 중 성공한 다른 신고·숨김·차단은 그대로 두고, 현재 상태에서 이번
+        // 게시물의 낙관적 숨김만 되돌린다.
+        setState(() {
+          _communitySafetyState = CommunitySafetyState(
+            hiddenPostIds: {..._communitySafetyState.hiddenPostIds}
+              ..remove(post.id),
+            blockedOwnerIds: _communitySafetyState.blockedOwnerIds,
+          );
+        });
+      }
+      await _subscribeToSharedPosts();
+      if (!mounted) return;
+      _showMessage('신고를 접수하지 못했습니다. 다시 시도해주세요.');
+    }
+  }
+
+  Future<void> _deleteSharedPost(SharedPost post) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('내 게시물을 삭제할까요?'),
+        content: const Text('공감 피드에서 즉시 삭제되며 나중에 다시 공유할 수 있습니다.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('삭제'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await AppFirebaseService.instance.deleteSharedPost(post.id);
       if (!mounted) return;
       setState(() {
-        post.reportedByMe = true;
-        post.reportCount = result.reportCount;
-        if (result.removed) {
-          sharedPosts.removeWhere((item) => item.id == post.id);
+        sharedPosts.removeWhere((item) => item.id == post.id);
+        final index = records.indexWhere((record) => record.id == post.id);
+        if (index != -1) {
+          final record = records[index];
+          records[index] = EmotionRecord(
+            id: record.id,
+            createdAt: record.createdAt,
+            category: record.category,
+            moodEmoji: record.moodEmoji,
+            moodLabel: record.moodLabel,
+            text: record.text,
+            story: record.story,
+          );
         }
       });
-      final message = result.removed
-          ? '신고가 5건 누적되어 공감 목록에서 자동으로 숨김 처리되었습니다.'
-          : result.alreadyReported
-              ? '이미 신고한 사연입니다.'
-              : '신고가 접수되었습니다. (${result.reportCount}/5)';
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
+      _showMessage('내 공유 게시물을 삭제했습니다.');
     } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('신고를 접수하지 못했습니다. 다시 시도해주세요.')),
-        );
-      }
+      _showMessage('게시물을 삭제하지 못했습니다. 다시 시도해주세요.');
     }
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 }
 
@@ -1912,6 +2073,18 @@ class _WritingFlowState extends State<WritingFlow> {
                   ),
                   onPressed: () async {
                     unawaited(AppAudioService.instance.playButton());
+                    final violation = findCommunityContentViolation(
+                      text: textController.text,
+                      category: category,
+                      moodEmoji: moodEmoji,
+                      moodLabel: moodLabel,
+                    );
+                    if (violation != null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(violation.message)),
+                      );
+                      return;
+                    }
                     if (!await ensureCommunityPolicy(context) || !mounted) {
                       return;
                     }
@@ -2772,14 +2945,22 @@ class EmpathyPage extends StatefulWidget {
   final List<SharedPost> posts;
   final String currentUserId;
   final void Function(SharedPost, int) onReact;
-  final ValueChanged<SharedPost> onReport;
+  final ValueChanged<SharedPost>? onReport;
+  final void Function(SharedPost, CommunityReportReason)? onReportWithReason;
+  final ValueChanged<SharedPost>? onHide;
+  final ValueChanged<SharedPost>? onBlock;
+  final ValueChanged<SharedPost>? onDelete;
   final DateTime? now;
   const EmpathyPage({
     super.key,
     required this.posts,
     required this.currentUserId,
     required this.onReact,
-    required this.onReport,
+    this.onReport,
+    this.onReportWithReason,
+    this.onHide,
+    this.onBlock,
+    this.onDelete,
     this.now,
   });
 
@@ -2921,6 +3102,10 @@ class _EmpathyPageState extends State<EmpathyPage> {
                 reactionEnabled: isToday,
                 onReact: widget.onReact,
                 onReport: widget.onReport,
+                onReportWithReason: widget.onReportWithReason,
+                onHide: widget.onHide,
+                onBlock: widget.onBlock,
+                onDelete: widget.onDelete,
               ),
             ),
           ],
@@ -2966,20 +3151,78 @@ class _CompactDateDropdown extends StatelessWidget {
   }
 }
 
+enum CommunityPostAction { report, hide, block, delete }
+
 class SharedPostCard extends StatelessWidget {
   final SharedPost post;
   final bool mine;
   final bool reactionEnabled;
   final void Function(SharedPost, int) onReact;
-  final ValueChanged<SharedPost> onReport;
+  final ValueChanged<SharedPost>? onReport;
+  final void Function(SharedPost, CommunityReportReason)? onReportWithReason;
+  final ValueChanged<SharedPost>? onHide;
+  final ValueChanged<SharedPost>? onBlock;
+  final ValueChanged<SharedPost>? onDelete;
   const SharedPostCard({
     super.key,
     required this.post,
     required this.mine,
     this.reactionEnabled = true,
     required this.onReact,
-    required this.onReport,
+    this.onReport,
+    this.onReportWithReason,
+    this.onHide,
+    this.onBlock,
+    this.onDelete,
   });
+
+  Future<void> _handleAction(
+    BuildContext context,
+    CommunityPostAction action,
+  ) async {
+    switch (action) {
+      case CommunityPostAction.report:
+        final reason = await showModalBottomSheet<CommunityReportReason>(
+          context: context,
+          showDragHandle: true,
+          builder: (context) => SafeArea(
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                const ListTile(
+                  title: Text(
+                    '신고 사유를 선택해 주세요',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                for (final reason in CommunityReportReason.values)
+                  ListTile(
+                    title: Text(reason.label),
+                    onTap: () => Navigator.pop(context, reason),
+                  ),
+              ],
+            ),
+          ),
+        );
+        if (reason == null) return;
+        if (onReportWithReason != null) {
+          onReportWithReason!(post, reason);
+        } else {
+          onReport?.call(post);
+        }
+        return;
+      case CommunityPostAction.hide:
+        onHide?.call(post);
+        return;
+      case CommunityPostAction.block:
+        onBlock?.call(post);
+        return;
+      case CommunityPostAction.delete:
+        onDelete?.call(post);
+        return;
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Card(
         child: Padding(
@@ -3020,11 +3263,34 @@ class SharedPostCard extends StatelessWidget {
                   ),
                 ),
               ),
-              TextButton.icon(
-                onPressed:
-                    mine || post.reportedByMe ? null : () => onReport(post),
-                icon: const Icon(Icons.report, color: Colors.red),
-                label: Text(post.reportedByMe ? '신고 완료' : '신고'),
+              Align(
+                alignment: Alignment.centerRight,
+                child: PopupMenuButton<CommunityPostAction>(
+                  tooltip: '게시물 관리',
+                  onSelected: (action) => _handleAction(context, action),
+                  itemBuilder: (context) => mine
+                      ? const [
+                          PopupMenuItem(
+                            value: CommunityPostAction.delete,
+                            child: Text('내 게시물 삭제'),
+                          ),
+                        ]
+                      : const [
+                          PopupMenuItem(
+                            value: CommunityPostAction.report,
+                            child: Text('신고하기'),
+                          ),
+                          PopupMenuItem(
+                            value: CommunityPostAction.hide,
+                            child: Text('이 게시물 숨기기'),
+                          ),
+                          PopupMenuItem(
+                            value: CommunityPostAction.block,
+                            child: Text('이 작성자 차단'),
+                          ),
+                        ],
+                  icon: const Icon(Icons.more_horiz),
+                ),
               ),
             ],
           ),
@@ -3068,7 +3334,8 @@ List<SharedPost> postsForDay(List<SharedPost> posts, DateTime date) {
 
 class MySharePage extends StatelessWidget {
   final List<SharedPost> posts;
-  const MySharePage({super.key, required this.posts});
+  final ValueChanged<SharedPost>? onDelete;
+  const MySharePage({super.key, required this.posts, this.onDelete});
   @override
   Widget build(BuildContext context) => SafeArea(
         child: ListView(
@@ -3108,6 +3375,12 @@ class MySharePage extends StatelessWidget {
                             key: ValueKey('my-share-date-${p.id}'),
                             style: Theme.of(context).textTheme.bodyMedium,
                           ),
+                          if (onDelete != null)
+                            IconButton(
+                              tooltip: '내 게시물 삭제',
+                              onPressed: () => onDelete!(p),
+                              icon: const Icon(Icons.delete_outline),
+                            ),
                         ],
                       ),
                       Text(p.text),
@@ -3915,6 +4188,20 @@ class SettingsPage extends StatelessWidget {
                           builder: (_) => const LegalDocumentsPage()),
                     ),
                   ),
+                  ListTile(
+                    leading: const Icon(Icons.support_agent),
+                    title: const Text('고객지원 및 신고'),
+                    subtitle: const Text('부적절한 활동은 이메일로도 신고할 수 있습니다.'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => _openSupportEmail(context),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.public),
+                    title: const Text('지원 페이지'),
+                    subtitle: const Text('문의 방법과 커뮤니티 처리 정책 보기'),
+                    trailing: const Icon(Icons.open_in_new),
+                    onTap: () => _openSupportPage(context),
+                  ),
                 ],
               ),
             ),
@@ -3946,5 +4233,34 @@ class SettingsPage extends StatelessWidget {
       ),
     );
     if (confirmed == true) await action();
+  }
+
+  static Future<void> _openSupportEmail(BuildContext context) async {
+    final opened = await launchUrl(
+      Uri(
+        scheme: 'mailto',
+        path: 'a01041989325@gmail.com',
+        queryParameters: {
+          'subject': '[참을인] 부적절한 활동 신고 및 고객지원',
+        },
+      ),
+    );
+    if (!opened && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('이메일 앱을 열 수 없습니다.')),
+      );
+    }
+  }
+
+  static Future<void> _openSupportPage(BuildContext context) async {
+    final opened = await launchUrl(
+      Uri.parse('https://thebestdev9325.github.io/-/'),
+      mode: LaunchMode.externalApplication,
+    );
+    if (!opened && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('지원 페이지를 열 수 없습니다.')),
+      );
+    }
   }
 }

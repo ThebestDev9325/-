@@ -46,4 +46,20 @@ void main() {
     expect(find.text('커뮤니티 운영정책'), findsOneWidget);
     expect(find.text('기록 및 서비스 이용 안내'), findsOneWidget);
   });
+
+  testWidgets('초기 동의는 만 18세 이상 확인을 요구한다', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(home: InitialConsentPage(onAccepted: () {})),
+    );
+
+    expect(find.textContaining('만 18세 이상'), findsOneWidget);
+    expect(find.textContaining('만 14세 이상'), findsNothing);
+  });
+
+  test('커뮤니티 정책은 24시간 신고 처리와 연락처를 명시한다', () {
+    final policy = LegalDocumentType.community.body;
+    expect(policy, contains('24시간 이내'));
+    expect(policy, contains('a01041989325@gmail.com'));
+    expect(policy, contains('작성자를 차단'));
+  });
 }
