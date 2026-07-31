@@ -46,6 +46,13 @@ class AppFirebaseService {
     return (await _auth.signInAnonymously()).user!.uid;
   }
 
+  Future<void> signInWithEmail(String email, String password) async {
+    await _auth.signInWithEmailAndPassword(
+      email: email.trim(),
+      password: password,
+    );
+  }
+
   Future<String?> loadNickname() async {
     await signIn();
     final snapshot = await _db.collection('users').doc(userId).get();

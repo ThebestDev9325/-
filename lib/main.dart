@@ -2228,6 +2228,64 @@ class _AccountLinkPageState extends State<AccountLinkPage> {
     }
   }
 
+  Future<void> _signInWithEmail() async {
+    if (signingIn) return;
+    final emailController = TextEditingController();
+    final passwordController = TextEditingController();
+    final credentials = await showDialog<(String, String)>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('이메일로 로그인'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: emailController,
+              keyboardType: TextInputType.emailAddress,
+              autocorrect: false,
+              enableSuggestions: false,
+              decoration: const InputDecoration(labelText: '이메일'),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: passwordController,
+              obscureText: true,
+              decoration: const InputDecoration(labelText: '비밀번호'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(
+              context,
+              (emailController.text.trim(), passwordController.text),
+            ),
+            child: const Text('로그인'),
+          ),
+        ],
+      ),
+    );
+    emailController.dispose();
+    passwordController.dispose();
+    if (credentials == null || !mounted) return;
+    final (email, password) = credentials;
+    if (email.isEmpty || password.isEmpty) return;
+    try {
+      await _completeSignIn(() async {
+        await AppFirebaseService.instance.signInWithEmail(email, password);
+      });
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('이메일 로그인에 실패했습니다. 정보를 확인해주세요.')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -2275,6 +2333,11 @@ class _AccountLinkPageState extends State<AccountLinkPage> {
                 onPressed: signingIn ? null : _signInWithApple,
               ),
             ],
+            const SizedBox(height: 20),
+            TextButton(
+              onPressed: signingIn ? null : _signInWithEmail,
+              child: const Text('이메일로 로그인'),
+            ),
           ],
         ),
       ),
