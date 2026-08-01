@@ -34,21 +34,23 @@ void main() {
     );
   });
 
-  testWidgets('네 광고 슬롯이 동일한 너비로 표시된다', (tester) async {
+  testWidgets('네 광고가 두 칸씩 10초마다 교대한다', (tester) async {
     await tester.pumpWidget(
       const MaterialApp(home: Scaffold(bottomNavigationBar: BottomAdSlots())),
     );
     expect(find.text('조용한 밤의 위로'), findsOneWidget);
     expect(find.text('참을인'), findsOneWidget);
-    expect(find.text('광고'), findsNWidgets(4));
+    expect(find.text('광고'), findsNWidgets(2));
     expect(find.byIcon(Icons.play_circle_fill), findsNWidgets(2));
-    final widths = List.generate(
-      4,
-      (index) => tester
-          .getSize(find.byKey(ValueKey('bottom-ad-slot-${index + 1}')))
-          .width,
-    );
-    expect(widths.toSet(), hasLength(1));
+    expect(find.byKey(const ValueKey('bottom-ad-slot1')), findsOneWidget);
+    expect(find.byKey(const ValueKey('bottom-ad-slot2')), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 10));
+
+    expect(find.text('광고'), findsNWidgets(2));
+    expect(find.byKey(const ValueKey('bottom-ad-slot3')), findsOneWidget);
+    expect(find.byKey(const ValueKey('bottom-ad-slot4')), findsOneWidget);
+    expect(find.byIcon(Icons.play_circle_fill), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 

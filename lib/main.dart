@@ -842,11 +842,16 @@ class BottomAdSlots extends StatefulWidget {
 
 class _BottomAdSlotsState extends State<BottomAdSlots> {
   StreamSubscription<Map<String, AdSlotConfig>>? _adSubscription;
+  Timer? _rotationTimer;
+  int _phase = 0;
   Map<String, AdSlotConfig> _slots = const {...AdSlotConfig.fallbacks};
 
   @override
   void initState() {
     super.initState();
+    _rotationTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (mounted) setState(() => _phase = 1 - _phase);
+    });
     // Widget tests and previews can render the fallback ads without Firebase.
     if (Firebase.apps.isEmpty) return;
     _adSubscription = AppFirebaseService.instance.watchAdSlots().listen(
@@ -861,6 +866,7 @@ class _BottomAdSlotsState extends State<BottomAdSlots> {
 
   @override
   void dispose() {
+    _rotationTimer?.cancel();
     _adSubscription?.cancel();
     super.dispose();
   }
@@ -880,7 +886,11 @@ class _BottomAdSlotsState extends State<BottomAdSlots> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final slots = List.generate(4, (index) => _slots['slot${index + 1}']!);
+    final firstSlotIndex = _phase * 2;
+    final slots = List.generate(
+      2,
+      (index) => _slots['slot${firstSlotIndex + index + 1}']!,
+    );
     return SafeArea(
       top: false,
       child: Container(
@@ -900,9 +910,9 @@ class _BottomAdSlotsState extends State<BottomAdSlots> {
                 ),
               Expanded(
                 child: _AdSlot(
-                  key: ValueKey('bottom-ad-slot-${index + 1}'),
+                  key: ValueKey('bottom-ad-${slots[index].id}'),
                   label:
-                      '광고 영역 ${index + 1}: ${slots[index].enabled ? slots[index].title : '비어 있음'}',
+                      '광고 영역 ${firstSlotIndex + index + 1}: ${slots[index].enabled ? slots[index].title : '비어 있음'}',
                   title: slots[index].enabled ? slots[index].title : '',
                   color: Colors.white,
                   youtube: slots[index].enabled && slots[index].youtube,
