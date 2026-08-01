@@ -11,10 +11,7 @@ void main() {
       positiveStories.map((story) => story.body).toSet().length,
       positiveStories.length,
     );
-    expect(
-      positiveStories.any((story) => story.quote.contains('의역')),
-      isTrue,
-    );
+    expect(positiveStories.any((story) => story.quote.contains('의역')), isTrue);
     for (final story in positiveStories) {
       expect(story.title, story.title.trim());
       expect(story.body, story.body.trim());
@@ -38,16 +35,20 @@ void main() {
     final ids = storyDb.map((story) => story.id).toSet();
     expect(ids.length, 300);
     expect(storyDb.map((story) => story.body).toSet().length, 300);
+    for (final story in storyDb) {
+      expect(story.body.length, lessThanOrEqualTo(100), reason: story.id);
+    }
     expect(
-        ids,
-        containsAll(<String>{
-          'self_kind',
-          'exhausted',
-          'anger_pause',
-          'unfair',
-          'lonely',
-          'anxiety',
-        }));
+      ids,
+      containsAll(<String>{
+        'self_kind',
+        'exhausted',
+        'anger_pause',
+        'unfair',
+        'lonely',
+        'anxiety',
+      }),
+    );
   });
 
   test('작성한 사연의 핵심 상황에 맞는 위로 이야기군을 추천한다', () {

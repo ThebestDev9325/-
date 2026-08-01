@@ -5,15 +5,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 EmotionRecord record(String mood, String emoji, int minute) => EmotionRecord(
-      id: '$mood$minute',
-      createdAt: DateTime(2026, 7, 12, 10, minute),
-      category: '직장',
-      moodEmoji: emoji,
-      moodLabel: mood,
-      text: '기록',
-      story: storyDb.first,
-      shared: false,
-    );
+  id: '$mood$minute',
+  createdAt: DateTime(2026, 7, 12, 10, minute),
+  category: '직장',
+  moodEmoji: emoji,
+  moodLabel: mood,
+  text: '기록',
+  story: storyDb.first,
+  shared: false,
+);
 
 void main() {
   test('날짜 대표 감정은 최빈값이며 동률이면 최신 기록이다', () {
@@ -34,14 +34,21 @@ void main() {
     );
   });
 
-  testWidgets('두 유튜브 광고가 각 슬롯에 표시된다', (tester) async {
+  testWidgets('네 광고 슬롯이 동일한 너비로 표시된다', (tester) async {
     await tester.pumpWidget(
       const MaterialApp(home: Scaffold(bottomNavigationBar: BottomAdSlots())),
     );
     expect(find.text('조용한 밤의 위로'), findsOneWidget);
     expect(find.text('참을인'), findsOneWidget);
-    expect(find.text('광고'), findsNWidgets(2));
+    expect(find.text('광고'), findsNWidgets(4));
     expect(find.byIcon(Icons.play_circle_fill), findsNWidgets(2));
+    final widths = List.generate(
+      4,
+      (index) => tester
+          .getSize(find.byKey(ValueKey('bottom-ad-slot-${index + 1}')))
+          .width,
+    );
+    expect(widths.toSet(), hasLength(1));
     await tester.pumpWidget(const SizedBox.shrink());
   });
 

@@ -97,23 +97,20 @@ class AppFirebaseService {
         .limit(300)
         .snapshots()
         .map((snapshot) {
-      final posts = <SharedPost>[];
-      for (final document in snapshot.docs) {
-        final post = _tryPostFromDoc(document);
-        if (post != null) posts.add(post);
-      }
-      return posts;
-    });
+          final posts = <SharedPost>[];
+          for (final document in snapshot.docs) {
+            final post = _tryPostFromDoc(document);
+            if (post != null) posts.add(post);
+          }
+          return posts;
+        });
   }
 
   Stream<Map<String, AdSlotConfig>> watchAdSlots() {
     return _db.collection('adSlots').snapshots().map((snapshot) {
-      final slots = <String, AdSlotConfig>{
-        'left': AdSlotConfig.leftFallback,
-        'right': AdSlotConfig.rightFallback,
-      };
+      final slots = <String, AdSlotConfig>{...AdSlotConfig.fallbacks};
       for (final document in snapshot.docs) {
-        if (document.id != 'left' && document.id != 'right') continue;
+        if (!slots.containsKey(document.id)) continue;
         final data = document.data();
         final fallback = slots[document.id]!;
         slots[document.id] = AdSlotConfig(
@@ -122,9 +119,11 @@ class AppFirebaseService {
           url: data['url'] as String? ?? fallback.url,
           enabled: data['enabled'] as bool? ?? fallback.enabled,
           youtube: data['youtube'] as bool? ?? fallback.youtube,
-          backgroundStart: (data['backgroundStart'] as num?)?.toInt() ??
+          backgroundStart:
+              (data['backgroundStart'] as num?)?.toInt() ??
               fallback.backgroundStart,
-          backgroundEnd: (data['backgroundEnd'] as num?)?.toInt() ??
+          backgroundEnd:
+              (data['backgroundEnd'] as num?)?.toInt() ??
               fallback.backgroundEnd,
         );
       }
@@ -215,8 +214,11 @@ class AppFirebaseService {
 
   Future<void> deleteSharedPost(String postId) async {
     final postReference = _db.collection('sharedPosts').doc(postId);
-    final recordReference =
-        _db.collection('users').doc(userId).collection('records').doc(postId);
+    final recordReference = _db
+        .collection('users')
+        .doc(userId)
+        .collection('records')
+        .doc(postId);
     await _db.runTransaction((transaction) async {
       final post = await transaction.get(postReference);
       if (post.exists && post.data()?['ownerId'] != userId) {
@@ -264,8 +266,11 @@ class AppFirebaseService {
   Future<void> deleteMyData() async {
     final user = _auth.currentUser;
     if (user == null) return;
-    final records =
-        await _db.collection('users').doc(user.uid).collection('records').get();
+    final records = await _db
+        .collection('users')
+        .doc(user.uid)
+        .collection('records')
+        .get();
     final shared = await _db
         .collection('sharedPosts')
         .where('ownerId', isEqualTo: user.uid)
