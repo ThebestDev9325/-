@@ -30,6 +30,11 @@ class AppFirebaseService {
     )) {
       return 'apple';
     }
+    if (user.providerData.any(
+      (provider) => provider.providerId == 'password',
+    )) {
+      return 'password';
+    }
     return null;
   }
 
@@ -37,6 +42,7 @@ class AppFirebaseService {
     return switch (await linkedProvider()) {
       'kakao' => '카카오 계정 연결됨',
       'apple' => 'Apple 계정 연결됨',
+      'password' => '이메일 계정 연결됨',
       _ => hasLinkedAccount ? '계정 연결됨' : null,
     };
   }
@@ -299,6 +305,14 @@ class AppFirebaseService {
     }
     await batch.commit();
     await user.delete();
+  }
+
+  Future<void> deletePasswordAccount() async {
+    final callable = FirebaseFunctions.instanceFor(
+      region: 'asia-northeast3',
+    ).httpsCallable('deletePasswordAccount');
+    await callable.call<void>();
+    await _auth.signOut();
   }
 
   EmotionRecord _recordFromDoc(

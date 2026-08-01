@@ -42,10 +42,13 @@ async function requireConnectedAccount(request) {
   const hasAppleProvider = user.providerData.some(
       (provider) => provider.providerId === "apple.com",
   );
-  if (!hasAppleProvider) {
+  const isApprovedPasswordPublisher =
+    request.auth.token.sharedRecordPublisher === true &&
+    user.providerData.some((provider) => provider.providerId === "password");
+  if (!hasAppleProvider && !isApprovedPasswordPublisher) {
     throw new HttpsError(
         "permission-denied",
-        "공유하려면 카카오 또는 Apple 계정 연결이 필요합니다.",
+        "공유하려면 계정 연결이 필요합니다.",
     );
   }
 }
@@ -346,3 +349,30 @@ exports.deleteAppleAccount = onCall({region: "asia-northeast3"}, async (request)
   });
   return {deleted: true};
 });
+
+exports.deletePasswordAccount = onCall(
+    {region: "asia-northeast3"},
+    async (request) => {
+      if (!request.auth) {
+        throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
+      }
+      const uid = request.auth.uid;
+      const user = await getAuth().getUser(uid);
+      const hasPasswordProvider = user.providerData.some(
+          (provider) => provider.providerId === "password",
+      );
+      if (!hasPasswordProvider) {
+        throw new HttpsError(
+            "permission-denied",
+            "이메일 계정 연결을 확인할 수 없습니다.",
+        );
+      }
+
+      await deleteAccountData({
+        database: db,
+        authentication: getAuth(),
+        uid,
+      });
+      return {deleted: true};
+    },
+);

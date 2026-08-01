@@ -20,6 +20,7 @@ import 'models.dart';
 import 'plant_progress_store.dart';
 import 'positive_bookmark_store.dart';
 import 'shared_preferences_community_safety_store.dart';
+import 'share_failure_message.dart';
 import 'text_layout.dart';
 
 Future<void> main() async {
@@ -365,10 +366,15 @@ class _AppShellState extends State<AppShell> {
     try {
       final deletedUserId = currentUserId;
       final provider = await AppFirebaseService.instance.linkedProvider();
-      if (provider == 'apple') {
-        await AppleAuthService.instance.deleteAccount();
-      } else {
-        await KakaoAuthService.instance.deleteAccount();
+      switch (provider) {
+        case 'apple':
+          await AppleAuthService.instance.deleteAccount();
+        case 'kakao':
+          await KakaoAuthService.instance.deleteAccount();
+        case 'password':
+          await AppFirebaseService.instance.deletePasswordAccount();
+        default:
+          throw StateError('지원하지 않는 계정 연결 방식입니다.');
       }
       await _postsSubscription?.cancel();
       _postsSubscription = null;
@@ -413,6 +419,7 @@ class _AppShellState extends State<AppShell> {
           storyStyle: 'random',
           todayWritingNumber: _todayWritingCount() + 1,
           onTabSelected: _selectTabFromRoute,
+          onShare: _persistWritingResult,
         ),
       ),
     );
@@ -420,64 +427,99 @@ class _AppShellState extends State<AppShell> {
       unawaited(AppAudioService.instance.setBgm(AppBgm.home));
       return;
     }
-    final activeUserId = AppFirebaseService.instance.currentUserId;
-    final activeNickname = AppFirebaseService.instance.hasLinkedAccount
-        ? await AppFirebaseService.instance.loadNickname()
-        : nickname;
-    final activeAccountLabel =
-        await AppFirebaseService.instance.linkedAccountLabel();
-    await _syncSafetyAfterAccountChange();
-    if (!mounted) return;
-    final record = EmotionRecord(
-      id: DateTime.now().microsecondsSinceEpoch.toString(),
-      createdAt: DateTime.now(),
-      category: result.category,
-      moodEmoji: result.moodEmoji,
-      moodLabel: result.moodLabel,
-      text: result.text,
-      story: result.story,
-      shared: result.shared,
-    );
+    await _persistWritingResult(result);
+  }
+
+  Future<bool> _persistWritingResult(WritingResult result) async {
     try {
-      if (activeUserId != null) {
-        await AppFirebaseService.instance.saveRecord(record);
-      } else if (result.shared) {
+      if (result.shared) {
+        if (!await ensureCommunityPolicy(context) || !mounted) return false;
+        final provider = await AppFirebaseService.instance.linkedProvider();
+        if (!mounted) return false;
+        if (provider == null) {
+          final linked = await Navigator.of(context).push<bool>(
+            MaterialPageRoute(
+              builder: (_) => AccountLinkPage(
+                onTabSelected: _selectTabFromRoute,
+              ),
+            ),
+          );
+          if (!mounted || linked != true) return false;
+          await _syncSafetyAfterAccountChange();
+        }
+      }
+      final activeUserId = AppFirebaseService.instance.currentUserId;
+      if (activeUserId == null) {
         throw StateError('공유에 사용할 Firebase 계정이 없습니다.');
       }
-      if (result.shared) await _subscribeToSharedPosts();
+      final record = EmotionRecord(
+        id: result.id,
+        createdAt: result.createdAt,
+        category: result.category,
+        moodEmoji: result.moodEmoji,
+        moodLabel: result.moodLabel,
+        text: result.text,
+        story: result.story,
+        shared: result.shared,
+      );
+      await AppFirebaseService.instance.saveRecord(record);
+      if (!mounted) return true;
+      setState(() {
+        currentUserId = activeUserId;
+        records.insert(0, record);
+        if (result.shared) {
+          sharedPosts.removeWhere((post) => post.id == record.id);
+          sharedPosts.insert(
+            0,
+            SharedPost(
+              id: record.id,
+              ownerId: activeUserId,
+              category: record.category,
+              text: record.text,
+              moodEmoji: record.moodEmoji,
+              moodLabel: record.moodLabel,
+              createdAt: record.createdAt,
+            ),
+          );
+          tabIndex = 3;
+        } else {
+          tabIndex = 1;
+        }
+      });
+      if (result.storyFeedback != null) {
+        unawaited(
+          AppFirebaseService.instance.submitStoryFeedback(
+            result.story.id,
+            result.storyFeedback!,
+          ),
+        );
+      }
+      if (result.shared) unawaited(_refreshAfterSharedRecord());
+      return true;
     } catch (error, stackTrace) {
       debugPrint('Record save error: $error\n$stackTrace');
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            result.shared
-                ? '공유 글을 서버에 저장하지 못했습니다. 인터넷 연결을 확인하고 다시 시도해주세요.'
-                : '기록을 저장하지 못했습니다. 인터넷 연결을 확인하고 다시 시도해주세요.',
-          ),
-        ),
+      _showMessage(
+        result.shared
+            ? shareFailureMessage(error)
+            : '기록을 저장하지 못했습니다. 잠시 후 다시 시도해주세요.',
       );
-      return;
+      return false;
     }
-    if (!mounted) return;
-    setState(() {
-      if (activeUserId != null) currentUserId = activeUserId;
-      nickname = activeNickname;
-      linkedAccountLabel = activeAccountLabel;
-      records.insert(0, record);
-      if (result.shared) {
-        tabIndex = 3;
-      } else {
-        tabIndex = 1;
-      }
-    });
-    if (result.storyFeedback != null) {
-      unawaited(
-        AppFirebaseService.instance.submitStoryFeedback(
-          result.story.id,
-          result.storyFeedback!,
-        ),
-      );
+  }
+
+  Future<void> _refreshAfterSharedRecord() async {
+    try {
+      await _subscribeToSharedPosts();
+      final activeNickname = await AppFirebaseService.instance.loadNickname();
+      final activeAccountLabel =
+          await AppFirebaseService.instance.linkedAccountLabel();
+      if (!mounted) return;
+      setState(() {
+        nickname = activeNickname ?? nickname;
+        linkedAccountLabel = activeAccountLabel;
+      });
+    } catch (error, stackTrace) {
+      debugPrint('Post-share refresh error: $error\n$stackTrace');
     }
   }
 
@@ -542,7 +584,7 @@ class _AppShellState extends State<AppShell> {
       debugPrint('Saved record share error: $error\n$stackTrace');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('공유하지 못했습니다. 인터넷 연결을 확인하고 다시 시도해주세요.')),
+          SnackBar(content: Text(shareFailureMessage(error))),
         );
       }
       return false;
@@ -1593,6 +1635,8 @@ class _WeekdayPlant extends StatelessWidget {
 }
 
 class WritingResult {
+  final String id;
+  final DateTime createdAt;
   final String text;
   final String category;
   final String moodEmoji;
@@ -1607,19 +1651,23 @@ class WritingResult {
     this.moodLabel,
     this.story,
     this.shared,
-    this.storyFeedback,
-  );
+    this.storyFeedback, {
+    required this.id,
+    required this.createdAt,
+  });
 }
 
 class WritingFlow extends StatefulWidget {
   final String storyStyle;
   final int todayWritingNumber;
   final ValueChanged<int>? onTabSelected;
+  final Future<bool> Function(WritingResult)? onShare;
   const WritingFlow({
     super.key,
     required this.storyStyle,
     this.todayWritingNumber = 1,
     this.onTabSelected,
+    this.onShare,
   });
   @override
   State<WritingFlow> createState() => _WritingFlowState();
@@ -1638,6 +1686,9 @@ class _WritingFlowState extends State<WritingFlow> {
   int strokeIndex = 0;
   Timer? strokeTimer;
   bool thirdWritingMessageShown = false;
+  bool sharing = false;
+  String? recordId;
+  DateTime? recordCreatedAt;
 
   final categories = const ['직장', '고객', '가족', '연인', '친구', '타인', '나 자신', '기타'];
   final moods = const [
@@ -1770,24 +1821,98 @@ class _WritingFlowState extends State<WritingFlow> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(),
-      bottomNavigationBar: AppBottomArea(
-        selectedIndex: 0,
-        onSelected: widget.onTabSelected ?? (_) {},
-      ),
-      body: PageView(
-        controller: pageController,
-        physics: const NeverScrollableScrollPhysics(),
-        children: [
-          _drawPage(),
-          _recordPage(),
-          _moodPage(),
-          _storyPage(),
-          _savePage(),
-        ],
+    return PopScope(
+      canPop: !sharing,
+      child: Scaffold(
+        appBar: AppBar(automaticallyImplyLeading: !sharing),
+        bottomNavigationBar: IgnorePointer(
+          key: const ValueKey('writing-bottom-navigation-lock'),
+          ignoring: sharing,
+          child: AnimatedOpacity(
+            opacity: sharing ? 0.55 : 1,
+            duration: const Duration(milliseconds: 150),
+            child: AppBottomArea(
+              selectedIndex: 0,
+              onSelected: sharing ? (_) {} : widget.onTabSelected ?? (_) {},
+            ),
+          ),
+        ),
+        body: PageView(
+          controller: pageController,
+          physics: const NeverScrollableScrollPhysics(),
+          children: [
+            _drawPage(),
+            _recordPage(),
+            _moodPage(),
+            _storyPage(),
+            _savePage(),
+          ],
+        ),
       ),
     );
+  }
+
+  WritingResult _writingResult(StoryItem story, {required bool shared}) {
+    final createdAt = recordCreatedAt ??= DateTime.now();
+    final id = recordId ??= createdAt.microsecondsSinceEpoch.toString();
+    return WritingResult(
+      textController.text,
+      category,
+      moodEmoji,
+      moodLabel,
+      story,
+      shared,
+      storyFeedback,
+      id: id,
+      createdAt: createdAt,
+    );
+  }
+
+  Future<void> _share(StoryItem story) async {
+    if (sharing) return;
+    final violation = findCommunityContentViolation(
+      text: textController.text,
+      category: category,
+      moodEmoji: moodEmoji,
+      moodLabel: moodLabel,
+    );
+    if (violation != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(violation.message)),
+      );
+      return;
+    }
+    setState(() => sharing = true);
+    try {
+      final result = _writingResult(story, shared: true);
+      final callback = widget.onShare;
+      if (callback == null) {
+        if (!await ensureCommunityPolicy(context) || !mounted) return;
+        if (!AppFirebaseService.instance.hasLinkedAccount) {
+          final linked = await Navigator.of(context).push<bool>(
+            MaterialPageRoute(
+              builder: (_) => AccountLinkPage(
+                onTabSelected: widget.onTabSelected,
+              ),
+            ),
+          );
+          if (!mounted || linked != true) return;
+        }
+        if (mounted) Navigator.pop(context, result);
+        return;
+      }
+      final succeeded = await callback(result);
+      if (mounted && succeeded) Navigator.pop(context);
+    } catch (error, stackTrace) {
+      debugPrint('Writing share callback error: $error\n$stackTrace');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(shareFailureMessage(error))),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => sharing = false);
+    }
   }
 
   Widget _drawPage() => Padding(
@@ -2132,21 +2257,13 @@ class _WritingFlowState extends State<WritingFlow> {
                 ),
                 const Text('달력에서 다시 볼 수 있습니다.'),
                 FilledButton(
-                  onPressed: () {
-                    unawaited(AppAudioService.instance.playComplete());
-                    Navigator.pop(
-                      context,
-                      WritingResult(
-                        textController.text,
-                        category,
-                        moodEmoji,
-                        moodLabel,
-                        story,
-                        false,
-                        storyFeedback,
-                      ),
-                    );
-                  },
+                  onPressed: sharing
+                      ? null
+                      : () {
+                          unawaited(AppAudioService.instance.playComplete());
+                          Navigator.pop(
+                              context, _writingResult(story, shared: false));
+                        },
                   child: const Text('내 기록으로 저장'),
                 ),
               ],
@@ -2168,47 +2285,25 @@ class _WritingFlowState extends State<WritingFlow> {
                     backgroundColor: const Color(0xFFE6B84A),
                     foregroundColor: const Color(0xFF382B0A),
                   ),
-                  onPressed: () async {
-                    unawaited(AppAudioService.instance.playButton());
-                    final violation = findCommunityContentViolation(
-                      text: textController.text,
-                      category: category,
-                      moodEmoji: moodEmoji,
-                      moodLabel: moodLabel,
-                    );
-                    if (violation != null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(violation.message)),
-                      );
-                      return;
-                    }
-                    if (!await ensureCommunityPolicy(context) || !mounted) {
-                      return;
-                    }
-                    if (!AppFirebaseService.instance.hasLinkedAccount) {
-                      final linked = await Navigator.of(context).push<bool>(
-                        MaterialPageRoute(
-                          builder: (_) => AccountLinkPage(
-                            onTabSelected: widget.onTabSelected,
-                          ),
-                        ),
-                      );
-                      if (!mounted || linked != true) return;
-                    }
-                    Navigator.pop(
-                      context,
-                      WritingResult(
-                        textController.text,
-                        category,
-                        moodEmoji,
-                        moodLabel,
-                        story,
-                        true,
-                        storyFeedback,
-                      ),
-                    );
-                  },
-                  child: const Text('공유하기'),
+                  onPressed: sharing
+                      ? null
+                      : () async {
+                          unawaited(AppAudioService.instance.playButton());
+                          await _share(story);
+                        },
+                  child: sharing
+                      ? const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox.square(
+                              dimension: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                            SizedBox(width: 8),
+                            Text('공유 중...'),
+                          ],
+                        )
+                      : const Text('공유하기'),
                 ),
               ],
             ),
