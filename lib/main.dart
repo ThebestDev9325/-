@@ -86,8 +86,9 @@ class _ChameulinAppState extends State<ChameulinApp>
       ),
       darkTheme: ThemeData.dark(useMaterial3: true).copyWith(
         textTheme: ThemeData.dark().textTheme.apply(fontFamily: 'Pretendard'),
-        primaryTextTheme:
-            ThemeData.dark().primaryTextTheme.apply(fontFamily: 'Pretendard'),
+        primaryTextTheme: ThemeData.dark().primaryTextTheme.apply(
+              fontFamily: 'Pretendard',
+            ),
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF8FAA66),
           brightness: Brightness.dark,
@@ -287,6 +288,7 @@ class _AppShellState extends State<AppShell> {
         records: records,
         onTabSelected: _selectTabFromRoute,
         onShare: _shareSavedRecord,
+        onUnshare: _unshareSavedRecord,
       ),
       EmpathyPage(
         posts: sharedPosts,
@@ -547,6 +549,53 @@ class _AppShellState extends State<AppShell> {
     }
   }
 
+  Future<bool> _unshareSavedRecord(EmotionRecord record) async {
+    if (!record.shared) return true;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('공유를 취소할까요?'),
+        content: const Text('공감 피드에서 글이 삭제되며, 나중에 다시 공유할 수 있어요.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('돌아가기'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('공유 취소'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return false;
+    try {
+      await AppFirebaseService.instance.deleteSharedPost(record.id);
+      if (!mounted) return false;
+      setState(() {
+        sharedPosts.removeWhere((item) => item.id == record.id);
+        final index = records.indexWhere((item) => item.id == record.id);
+        if (index != -1) {
+          records[index] = EmotionRecord(
+            id: record.id,
+            createdAt: record.createdAt,
+            category: record.category,
+            moodEmoji: record.moodEmoji,
+            moodLabel: record.moodLabel,
+            text: record.text,
+            story: record.story,
+          );
+        }
+      });
+      _showMessage('공유를 취소했습니다.');
+      return true;
+    } catch (error, stackTrace) {
+      debugPrint('Saved record unshare error: $error\n$stackTrace');
+      _showMessage('공유를 취소하지 못했습니다. 다시 시도해주세요.');
+      return false;
+    }
+  }
+
   Future<void> _syncSafetyAfterAccountChange() async {
     final activeUserId = AppFirebaseService.instance.currentUserId;
     if (activeUserId == null ||
@@ -618,15 +667,13 @@ class _AppShellState extends State<AppShell> {
     }
   }
 
-  Future<void> _report(
-    SharedPost post,
-    CommunityReportReason reason,
-  ) async {
+  Future<void> _report(SharedPost post, CommunityReportReason reason) async {
     // 서버 응답을 기다리는 동안 피드 스트림이 다시 emit해도 게시물이 되살아나지
     // 않도록 숨김 상태를 먼저 반영한다. 이미 숨겨져 있던 게시물이면 실패해도 숨김을
     // 유지하고, 이번 신고로 새로 숨긴 경우에만 되돌린다.
-    final wasHiddenBeforeReport =
-        _communitySafetyState.hiddenPostIds.contains(post.id);
+    final wasHiddenBeforeReport = _communitySafetyState.hiddenPostIds.contains(
+      post.id,
+    );
     setState(() {
       _communitySafetyState = CommunitySafetyState(
         hiddenPostIds: {..._communitySafetyState.hiddenPostIds, post.id},
@@ -713,9 +760,9 @@ class _AppShellState extends State<AppShell> {
 
   void _showMessage(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 }
 
@@ -796,20 +843,30 @@ class BottomAdSlots extends StatefulWidget {
 }
 
 class _BottomAdSlotsState extends State<BottomAdSlots> {
-  Timer? _rotationTimer;
-  int _phase = 0;
+  StreamSubscription<Map<String, AdSlotConfig>>? _adSubscription;
+  Map<String, AdSlotConfig> _slots = const {
+    'left': AdSlotConfig.leftFallback,
+    'right': AdSlotConfig.rightFallback,
+  };
 
   @override
   void initState() {
     super.initState();
-    _rotationTimer = Timer.periodic(const Duration(seconds: 10), (_) {
-      if (mounted) setState(() => _phase = 1 - _phase);
-    });
+    // Widget tests and previews can render the fallback ads without Firebase.
+    if (Firebase.apps.isEmpty) return;
+    _adSubscription = AppFirebaseService.instance.watchAdSlots().listen(
+      (slots) {
+        if (mounted) setState(() => _slots = slots);
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        debugPrint('Remote ad slots error: $error\n$stackTrace');
+      },
+    );
   }
 
   @override
   void dispose() {
-    _rotationTimer?.cancel();
+    _adSubscription?.cancel();
     super.dispose();
   }
 
@@ -828,6 +885,8 @@ class _BottomAdSlotsState extends State<BottomAdSlots> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final left = _slots['left']!;
+    final right = _slots['right']!;
     return SafeArea(
       top: false,
       child: Container(
@@ -841,16 +900,15 @@ class _BottomAdSlotsState extends State<BottomAdSlots> {
             Expanded(
               child: _AdSlot(
                 key: const ValueKey('bottom-ad-slot-1'),
-                label:
-                    _phase == 0 ? '광고 영역 좌측 1: 조용한 밤의 위로' : '광고 영역 좌측 2: 비어 있음',
-                title: _phase == 0 ? '조용한 밤의 위로' : '',
+                label: '광고 영역 좌측: ${left.enabled ? left.title : '비어 있음'}',
+                title: left.enabled ? left.title : '',
                 color: Colors.white,
-                youtube: _phase == 0,
-                background: _phase == 0
-                    ? const [Color(0xFF17283A), Color(0xFF526B56)]
+                youtube: left.enabled && left.youtube,
+                background: left.enabled
+                    ? [Color(left.backgroundStart), Color(left.backgroundEnd)]
                     : null,
-                onTap: _phase == 0
-                    ? () => _open('https://www.youtube.com/@slowhug')
+                onTap: left.enabled && left.url.isNotEmpty
+                    ? () => _open(left.url)
                     : null,
               ),
             ),
@@ -862,15 +920,15 @@ class _BottomAdSlotsState extends State<BottomAdSlots> {
             Expanded(
               child: _AdSlot(
                 key: const ValueKey('bottom-ad-slot-2'),
-                label: _phase == 0 ? '광고 영역 우측 1: 비어 있음' : '광고 영역 우측 2: 참을인',
-                title: _phase == 0 ? '' : '참을인',
+                label: '광고 영역 우측: ${right.enabled ? right.title : '비어 있음'}',
+                title: right.enabled ? right.title : '',
                 color: Colors.white,
-                youtube: _phase == 1,
-                background: _phase == 1
-                    ? const [Color(0xFF1D2733), Color(0xFF53606B)]
+                youtube: right.enabled && right.youtube,
+                background: right.enabled
+                    ? [Color(right.backgroundStart), Color(right.backgroundEnd)]
                     : null,
-                onTap: _phase == 1
-                    ? () => _open('https://www.youtube.com/@ThebestDev93')
+                onTap: right.enabled && right.url.isNotEmpty
+                    ? () => _open(right.url)
                     : null,
               ),
             ),
@@ -1264,134 +1322,136 @@ class _HomePageState extends State<HomePage>
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(builder: (context, constraints) {
-      final compactTabletLandscape =
-          constraints.maxWidth >= 900 && constraints.maxHeight <= 650;
-      final pagePadding = compactTabletLandscape ? 16.0 : 22.0;
-      final headerHeight = compactTabletLandscape ? 150.0 : 210.0;
-      final sloganTop = compactTabletLandscape ? 50.0 : 78.0;
-      final plantWidth = compactTabletLandscape ? 130.0 : 150.0;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compactTabletLandscape =
+            constraints.maxWidth >= 900 && constraints.maxHeight <= 650;
+        final pagePadding = compactTabletLandscape ? 16.0 : 22.0;
+        final headerHeight = compactTabletLandscape ? 150.0 : 210.0;
+        final sloganTop = compactTabletLandscape ? 50.0 : 78.0;
+        final plantWidth = compactTabletLandscape ? 130.0 : 150.0;
 
-      return SafeArea(
-        child: Padding(
-          padding: EdgeInsets.all(pagePadding),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(
-                key: const ValueKey('home-header'),
-                height: headerHeight,
-                child: Stack(
-                  children: [
-                    Positioned(
-                      left: 0,
-                      top: 0,
-                      child: Text(
-                        '참을인',
-                        style: TextStyle(
-                          fontSize: 34,
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.primary,
+        return SafeArea(
+          child: Padding(
+            padding: EdgeInsets.all(pagePadding),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  key: const ValueKey('home-header'),
+                  height: headerHeight,
+                  child: Stack(
+                    children: [
+                      Positioned(
+                        left: 0,
+                        top: 0,
+                        child: Text(
+                          '참을인',
+                          style: TextStyle(
+                            fontSize: 34,
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
                         ),
                       ),
-                    ),
-                    Positioned(
-                      left: 0,
-                      top: sloganTop,
-                      child: const SizedBox(
-                        width: 248,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            FittedBox(
-                              fit: BoxFit.scaleDown,
-                              alignment: Alignment.centerLeft,
-                              child: Text(
-                                '내 마음을 위해',
-                                key: ValueKey('home-slogan-first-line'),
+                      Positioned(
+                        left: 0,
+                        top: sloganTop,
+                        child: const SizedBox(
+                          width: 248,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  '내 마음을 위해',
+                                  key: ValueKey('home-slogan-first-line'),
+                                  style: TextStyle(
+                                    fontSize: 34,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              SizedBox(height: 8),
+                              Text(
+                                '참을인 하나',
+                                key: ValueKey('home-slogan-second-line'),
                                 style: TextStyle(
                                   fontSize: 34,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
-                            ),
-                            SizedBox(height: 8),
+                            ],
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        right: 0,
+                        top: 0,
+                        child: SizedBox(
+                          width: plantWidth,
+                          height: headerHeight,
+                          child: _WeekdayPlant(
+                            date: _now,
+                            stage: _stage,
+                            tapCount: _tapCount,
+                            tapAnimation: _tapController,
+                            onTap: _growPlant,
+                            revealFraction: _revealFractions[_stage],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(height: compactTabletLandscape ? 6 : 8),
+                Expanded(
+                  child: Container(
+                    key: const ValueKey('home-writing-card'),
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surfaceContainerLow,
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                    child: const Center(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
                             Text(
-                              '참을인 하나',
-                              key: ValueKey('home-slogan-second-line'),
+                              '忍',
                               style: TextStyle(
-                                fontSize: 34,
-                                fontWeight: FontWeight.bold,
+                                fontSize: 130,
+                                color: Color(0xFF617A3F),
                               ),
+                            ),
+                            Text(
+                              '참을 인을 써봅시다',
+                              style: TextStyle(fontWeight: FontWeight.bold),
                             ),
                           ],
                         ),
                       ),
                     ),
-                    Positioned(
-                      right: 0,
-                      top: 0,
-                      child: SizedBox(
-                        width: plantWidth,
-                        height: headerHeight,
-                        child: _WeekdayPlant(
-                          date: _now,
-                          stage: _stage,
-                          tapCount: _tapCount,
-                          tapAnimation: _tapController,
-                          onTap: _growPlant,
-                          revealFraction: _revealFractions[_stage],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              SizedBox(height: compactTabletLandscape ? 6 : 8),
-              Expanded(
-                child: Container(
-                  key: const ValueKey('home-writing-card'),
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surfaceContainerLow,
-                    borderRadius: BorderRadius.circular(30),
-                  ),
-                  child: const Center(
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            '忍',
-                            style: TextStyle(
-                              fontSize: 130,
-                              color: Color(0xFF617A3F),
-                            ),
-                          ),
-                          Text(
-                            '참을 인을 써봅시다',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ],
-                      ),
-                    ),
                   ),
                 ),
-              ),
-              SizedBox(height: compactTabletLandscape ? 8 : 12),
-              FilledButton(
-                onPressed: widget.onStart,
-                child: const SizedBox(
-                  width: double.infinity,
-                  child: Center(child: Text('시작하기')),
+                SizedBox(height: compactTabletLandscape ? 8 : 12),
+                FilledButton(
+                  onPressed: widget.onStart,
+                  child: const SizedBox(
+                    width: double.infinity,
+                    child: Center(child: Text('시작하기')),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-      );
-    });
+        );
+      },
+    );
   }
 }
 
@@ -1638,11 +1698,7 @@ class _WritingFlowState extends State<WritingFlow> {
           icon: const Text('🌿', style: TextStyle(fontSize: 38)),
           title: const FittedBox(
             fit: BoxFit.scaleDown,
-            child: Text(
-              '오늘 세 번째 참을인을 쓰셨네요.',
-              maxLines: 1,
-              softWrap: false,
-            ),
+            child: Text('오늘 세 번째 참을인을 쓰셨네요.', maxLines: 1, softWrap: false),
           ),
           content: const Text(
             '오늘 주변이 조금 시끄러웠나 봅니다.\n'
@@ -2260,10 +2316,10 @@ class _AccountLinkPageState extends State<AccountLinkPage> {
             child: const Text('취소'),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(
-              context,
-              (emailController.text.trim(), passwordController.text),
-            ),
+            onPressed: () => Navigator.pop(context, (
+              emailController.text.trim(),
+              passwordController.text,
+            )),
             child: const Text('로그인'),
           ),
         ],
@@ -2560,11 +2616,13 @@ class RecordsPage extends StatefulWidget {
   final List<EmotionRecord> records;
   final ValueChanged<int>? onTabSelected;
   final Future<bool> Function(EmotionRecord)? onShare;
+  final Future<bool> Function(EmotionRecord)? onUnshare;
   const RecordsPage({
     super.key,
     required this.records,
     this.onTabSelected,
     this.onShare,
+    this.onUnshare,
   });
   @override
   State<RecordsPage> createState() => _RecordsPageState();
@@ -2647,6 +2705,7 @@ class _RecordsPageState extends State<RecordsPage> {
             records: monthly,
             onTabSelected: widget.onTabSelected,
             onShare: widget.onShare,
+            onUnshare: widget.onUnshare,
           ),
           Card(
             child: Padding(
@@ -2681,6 +2740,7 @@ class CalendarGrid extends StatelessWidget {
   final List<EmotionRecord> records;
   final ValueChanged<int>? onTabSelected;
   final Future<bool> Function(EmotionRecord)? onShare;
+  final Future<bool> Function(EmotionRecord)? onUnshare;
   const CalendarGrid({
     super.key,
     required this.year,
@@ -2688,6 +2748,7 @@ class CalendarGrid extends StatelessWidget {
     required this.records,
     this.onTabSelected,
     this.onShare,
+    this.onUnshare,
   });
 
   @override
@@ -2715,6 +2776,7 @@ class CalendarGrid extends StatelessWidget {
                         records: list,
                         onTabSelected: onTabSelected,
                         onShare: onShare,
+                        onUnshare: onUnshare,
                       ),
                     ),
                   ),
@@ -2796,12 +2858,14 @@ class RecordListSheet extends StatelessWidget {
   final List<EmotionRecord> records;
   final ValueChanged<int>? onTabSelected;
   final Future<bool> Function(EmotionRecord)? onShare;
+  final Future<bool> Function(EmotionRecord)? onUnshare;
   const RecordListSheet({
     super.key,
     required this.day,
     required this.records,
     this.onTabSelected,
     this.onShare,
+    this.onUnshare,
   });
   @override
   Widget build(BuildContext context) => SafeArea(
@@ -2822,6 +2886,7 @@ class RecordListSheet extends StatelessWidget {
                         record: r,
                         onTabSelected: onTabSelected,
                         onShare: onShare,
+                        onUnshare: onUnshare,
                       ),
                     ),
                   ),
@@ -2870,11 +2935,13 @@ class RecordDetailPage extends StatefulWidget {
   final EmotionRecord record;
   final ValueChanged<int>? onTabSelected;
   final Future<bool> Function(EmotionRecord)? onShare;
+  final Future<bool> Function(EmotionRecord)? onUnshare;
   const RecordDetailPage({
     super.key,
     required this.record,
     this.onTabSelected,
     this.onShare,
+    this.onUnshare,
   });
 
   @override
@@ -2893,6 +2960,17 @@ class _RecordDetailPageState extends State<RecordDetailPage> {
     setState(() {
       _sharing = false;
       if (succeeded) _shared = true;
+    });
+  }
+
+  Future<void> _unshare() async {
+    if (_sharing || !_shared || widget.onUnshare == null) return;
+    setState(() => _sharing = true);
+    final succeeded = await widget.onUnshare!(widget.record);
+    if (!mounted) return;
+    setState(() {
+      _sharing = false;
+      if (succeeded) _shared = false;
     });
   }
 
@@ -2927,11 +3005,12 @@ class _RecordDetailPageState extends State<RecordDetailPage> {
                     Text(
                       '${widget.record.category} · ${widget.record.createdAt.year}.${widget.record.createdAt.month.toString().padLeft(2, '0')}.${widget.record.createdAt.day.toString().padLeft(2, '0')}',
                     ),
-                    if (widget.onShare != null)
+                    if (widget.onShare != null || widget.onUnshare != null)
                       Align(
                         alignment: Alignment.centerRight,
                         child: OutlinedButton.icon(
-                          onPressed: _shared || _sharing ? null : _share,
+                          onPressed:
+                              _sharing ? null : (_shared ? _unshare : _share),
                           icon: _sharing
                               ? const SizedBox(
                                   width: 16,
@@ -2940,11 +3019,13 @@ class _RecordDetailPageState extends State<RecordDetailPage> {
                                       CircularProgressIndicator(strokeWidth: 2),
                                 )
                               : Icon(
-                                  _shared ? Icons.check : Icons.share_outlined,
+                                  _shared ? Icons.undo : Icons.share_outlined,
                                   size: 18,
                                 ),
                           label: Text(
-                            _sharing ? '공유 중...' : (_shared ? '공유 완료' : '공유하기'),
+                            _sharing
+                                ? (_shared ? '공유 취소 중...' : '공유 중...')
+                                : (_shared ? '공유 취소' : '공유하기'),
                           ),
                         ),
                       ),
@@ -3935,10 +4016,8 @@ class _PositivePageState extends State<PositivePage> {
 class PositiveBookmarksPage extends StatefulWidget {
   final Set<int> positiveIndexes;
   final Set<int> quoteIndexes;
-  final Future<void> Function({
-    required bool isQuote,
-    required int index,
-  }) onToggle;
+  final Future<void> Function({required bool isQuote, required int index})
+      onToggle;
 
   const PositiveBookmarksPage({
     super.key,
@@ -3952,10 +4031,7 @@ class PositiveBookmarksPage extends StatefulWidget {
 }
 
 class _PositiveBookmarksPageState extends State<PositiveBookmarksPage> {
-  Future<void> _remove({
-    required bool isQuote,
-    required int index,
-  }) async {
+  Future<void> _remove({required bool isQuote, required int index}) async {
     await widget.onToggle(isQuote: isQuote, index: index);
     if (mounted) setState(() {});
   }
@@ -4008,10 +4084,7 @@ class _PositiveBookmarksPageState extends State<PositiveBookmarksPage> {
                         title: story.title,
                         body: story.body,
                         footer: story.quote,
-                        onRemove: () => _remove(
-                          isQuote: false,
-                          index: index,
-                        ),
+                        onRemove: () => _remove(isQuote: false, index: index),
                       );
                     }),
                   ],
@@ -4033,10 +4106,7 @@ class _PositiveBookmarksPageState extends State<PositiveBookmarksPage> {
                         isQuote: true,
                         body: quote.text,
                         footer: '— ${quote.attribution}',
-                        onRemove: () => _remove(
-                          isQuote: true,
-                          index: index,
-                        ),
+                        onRemove: () => _remove(isQuote: true, index: index),
                       );
                     }),
                   ],
@@ -4118,10 +4188,7 @@ class _BookmarkCard extends StatelessWidget {
               child: IconButton(
                 tooltip: '보관함에서 삭제',
                 onPressed: onRemove,
-                icon: const Icon(
-                  Icons.favorite,
-                  color: Color(0xFFE54866),
-                ),
+                icon: const Icon(Icons.favorite, color: Color(0xFFE54866)),
               ),
             ),
           ],
@@ -4303,15 +4370,13 @@ class SettingsPage extends StatelessWidget {
       Uri(
         scheme: 'mailto',
         path: 'a01041989325@gmail.com',
-        queryParameters: {
-          'subject': '[참을인] 부적절한 활동 신고 및 고객지원',
-        },
+        queryParameters: {'subject': '[참을인] 부적절한 활동 신고 및 고객지원'},
       ),
     );
     if (!opened && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('이메일 앱을 열 수 없습니다.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('이메일 앱을 열 수 없습니다.')));
     }
   }
 
@@ -4321,9 +4386,9 @@ class SettingsPage extends StatelessWidget {
       mode: LaunchMode.externalApplication,
     );
     if (!opened && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('지원 페이지를 열 수 없습니다.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('지원 페이지를 열 수 없습니다.')));
     }
   }
 }

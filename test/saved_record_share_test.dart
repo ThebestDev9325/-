@@ -42,21 +42,28 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(shareCalls, 1);
-    expect(find.text('공유 완료'), findsOneWidget);
+    expect(find.text('공유 취소'), findsOneWidget);
   });
 
-  testWidgets('이미 공유된 기록은 중복 공유할 수 없다', (tester) async {
+  testWidgets('이미 공유된 기록은 공유를 취소할 수 있다', (tester) async {
+    var unshareCalls = 0;
     await tester.pumpWidget(
       MaterialApp(
         home: RecordDetailPage(
           record: record(shared: true),
           onShare: (_) async => true,
+          onUnshare: (_) async {
+            unshareCalls++;
+            return true;
+          },
         ),
       ),
     );
 
-    expect(find.text('공유 완료'), findsOneWidget);
-    final button = tester.widget<OutlinedButton>(find.byType(OutlinedButton));
-    expect(button.onPressed, isNull);
+    await tester.tap(find.text('공유 취소'));
+    await tester.pumpAndSettle();
+
+    expect(unshareCalls, 1);
+    expect(find.text('공유하기'), findsOneWidget);
   });
 }

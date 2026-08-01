@@ -25,8 +25,9 @@ class AppFirebaseService {
     if (user == null || user.isAnonymous) return null;
     final token = await user.getIdTokenResult();
     if (token.claims?['provider'] == 'kakao') return 'kakao';
-    if (user.providerData
-        .any((provider) => provider.providerId == 'apple.com')) {
+    if (user.providerData.any(
+      (provider) => provider.providerId == 'apple.com',
+    )) {
       return 'apple';
     }
     return null;
@@ -105,6 +106,32 @@ class AppFirebaseService {
     });
   }
 
+  Stream<Map<String, AdSlotConfig>> watchAdSlots() {
+    return _db.collection('adSlots').snapshots().map((snapshot) {
+      final slots = <String, AdSlotConfig>{
+        'left': AdSlotConfig.leftFallback,
+        'right': AdSlotConfig.rightFallback,
+      };
+      for (final document in snapshot.docs) {
+        if (document.id != 'left' && document.id != 'right') continue;
+        final data = document.data();
+        final fallback = slots[document.id]!;
+        slots[document.id] = AdSlotConfig(
+          id: document.id,
+          title: data['title'] as String? ?? fallback.title,
+          url: data['url'] as String? ?? fallback.url,
+          enabled: data['enabled'] as bool? ?? fallback.enabled,
+          youtube: data['youtube'] as bool? ?? fallback.youtube,
+          backgroundStart: (data['backgroundStart'] as num?)?.toInt() ??
+              fallback.backgroundStart,
+          backgroundEnd: (data['backgroundEnd'] as num?)?.toInt() ??
+              fallback.backgroundEnd,
+        );
+      }
+      return slots;
+    });
+  }
+
   Future<void> saveRecord(EmotionRecord record) async {
     final ownerId = userId;
     await _db
@@ -112,9 +139,7 @@ class AppFirebaseService {
         .doc(ownerId)
         .collection('records')
         .doc(record.id)
-        .set(
-          _recordData(record, shared: false),
-        );
+        .set(_recordData(record, shared: false));
     if (record.shared) await _publishRecord(record.id);
   }
 
@@ -125,10 +150,7 @@ class AppFirebaseService {
         .doc(ownerId)
         .collection('records')
         .doc(record.id)
-        .set(
-          _recordData(record, shared: false),
-          SetOptions(merge: true),
-        );
+        .set(_recordData(record, shared: false), SetOptions(merge: true));
     await _publishRecord(record.id);
   }
 
@@ -197,12 +219,11 @@ class AppFirebaseService {
         _db.collection('users').doc(userId).collection('records').doc(postId);
     await _db.runTransaction((transaction) async {
       final post = await transaction.get(postReference);
-      if (!post.exists) return;
-      if (post.data()?['ownerId'] != userId) {
+      if (post.exists && post.data()?['ownerId'] != userId) {
         throw StateError('내 공유 글만 삭제할 수 있습니다.');
       }
       final record = await transaction.get(recordReference);
-      transaction.delete(postReference);
+      if (post.exists) transaction.delete(postReference);
       if (record.exists) {
         transaction.update(recordReference, {'shared': false});
       }
@@ -294,9 +315,7 @@ class AppFirebaseService {
     );
   }
 
-  SharedPost? _tryPostFromDoc(
-    QueryDocumentSnapshot<Map<String, dynamic>> doc,
-  ) {
+  SharedPost? _tryPostFromDoc(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data();
     final createdAt = data['createdAt'];
     final reactionsValue = data['reactions'];

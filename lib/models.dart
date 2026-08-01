@@ -58,6 +58,44 @@ class EmotionRecord {
   });
 }
 
+class AdSlotConfig {
+  final String id;
+  final String title;
+  final String url;
+  final bool enabled;
+  final bool youtube;
+  final int backgroundStart;
+  final int backgroundEnd;
+
+  const AdSlotConfig({
+    required this.id,
+    required this.title,
+    required this.url,
+    this.enabled = true,
+    this.youtube = false,
+    required this.backgroundStart,
+    required this.backgroundEnd,
+  });
+
+  static const leftFallback = AdSlotConfig(
+    id: 'left',
+    title: '조용한 밤의 위로',
+    url: 'https://www.youtube.com/@slowhug',
+    youtube: true,
+    backgroundStart: 0xFF17283A,
+    backgroundEnd: 0xFF526B56,
+  );
+
+  static const rightFallback = AdSlotConfig(
+    id: 'right',
+    title: '참을인',
+    url: 'https://www.youtube.com/@ThebestDev93',
+    youtube: true,
+    backgroundStart: 0xFF1D2733,
+    backgroundEnd: 0xFF53606B,
+  );
+}
+
 class SharedPost {
   final String id;
   final String ownerId;
