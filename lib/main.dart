@@ -978,19 +978,22 @@ class _AdSlot extends StatelessWidget {
     return Semantics(
       label: label,
       button: onTap != null,
-      child: Ink(
+      child: DecoratedBox(
         decoration: imageProvider != null
             ? BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.38),
-                backgroundBlendMode: BlendMode.darken,
+                color: background?.first ?? const Color(0xFF53606B),
                 image: DecorationImage(
                   image: imageProvider,
                   fit: BoxFit.cover,
+                  colorFilter: const ColorFilter.mode(
+                    Colors.black38,
+                    BlendMode.darken,
+                  ),
                   onError: (_, __) {},
                 ),
               )
             : background == null
-                ? null
+                ? const BoxDecoration()
                 : BoxDecoration(gradient: LinearGradient(colors: background!)),
         child: InkWell(
           onTap: onTap,
