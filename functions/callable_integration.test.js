@@ -250,6 +250,7 @@ test(
           reactedBy: ["another-user"],
           reportCount: 1,
         });
+        await recordReference.update({shared: false});
         await publisher.publish({recordId});
 
         const post = await postReference.get();
