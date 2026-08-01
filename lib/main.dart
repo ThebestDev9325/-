@@ -2801,23 +2801,40 @@ class RecordsPage extends StatefulWidget {
   final ValueChanged<int>? onTabSelected;
   final Future<bool> Function(EmotionRecord)? onShare;
   final Future<bool> Function(EmotionRecord)? onUnshare;
+  final DateTime? initialDate;
   const RecordsPage({
     super.key,
     required this.records,
     this.onTabSelected,
     this.onShare,
     this.onUnshare,
+    this.initialDate,
   });
   @override
   State<RecordsPage> createState() => _RecordsPageState();
 }
 
 class _RecordsPageState extends State<RecordsPage> {
-  int year = 2026;
-  int month = 7;
+  late int year;
+  late int month;
+
+  @override
+  void initState() {
+    super.initState();
+    final initialDate = widget.initialDate ?? DateTime.now();
+    year = initialDate.year;
+    month = initialDate.month;
+  }
 
   @override
   Widget build(BuildContext context) {
+    final years = <int>{
+      year,
+      for (var offset = -2; offset <= 4; offset++)
+        DateTime.now().year + offset,
+      ...widget.records.map((record) => record.createdAt.year),
+    }.toList()
+      ..sort();
     final monthly = widget.records
         .where((r) => r.createdAt.year == year && r.createdAt.month == month)
         .toList();
@@ -2842,7 +2859,7 @@ class _RecordsPageState extends State<RecordsPage> {
               ),
               DropdownButton<int>(
                 value: year,
-                items: [2026, 2027, 2028, 2029, 2030]
+                items: years
                     .map((y) => DropdownMenuItem(value: y, child: Text('$y년')))
                     .toList(),
                 onChanged: (v) => setState(() => year = v!),
