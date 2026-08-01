@@ -9,6 +9,7 @@ const {
 const {initializeApp, deleteApp} = require("firebase/app");
 const {
   connectAuthEmulator,
+  createUserWithEmailAndPassword,
   getAuth,
   signInAnonymously,
   signInWithCustomToken,
@@ -95,6 +96,37 @@ async function createConnectedPublisher(name) {
     app,
     userId,
     publish: httpsCallable(functions, "publishSharedRecord"),
+  };
+}
+
+async function createPasswordPublisher(name, {canPublish = false} = {}) {
+  const app = initializeApp(
+      {projectId, apiKey: "demo-api-key"},
+      `password-publisher-${name}-${Date.now()}`,
+  );
+  const auth = getAuth(app);
+  connectAuthEmulator(auth, "http://127.0.0.1:9099", {
+    disableWarnings: true,
+  });
+  const email = `${name}-${Date.now()}@review.example`;
+  const credential = await createUserWithEmailAndPassword(
+      auth,
+      email,
+      "review-password-1234",
+  );
+  if (canPublish) {
+    await getAdminAuth().setCustomUserClaims(credential.user.uid, {
+      sharedRecordPublisher: true,
+    });
+    await credential.user.getIdToken(true);
+  }
+  const functions = getFunctions(app, "asia-northeast3");
+  connectFunctionsEmulator(functions, "127.0.0.1", 5001);
+  return {
+    app,
+    userId: credential.user.uid,
+    publish: httpsCallable(functions, "publishSharedRecord"),
+    deleteAccount: httpsCallable(functions, "deletePasswordAccount"),
   };
 }
 
@@ -186,6 +218,107 @@ test(
       } finally {
         await deleteApp(reporter.app);
       }
+    },
+);
+
+test(
+    "password authentication can publish and retry the same record",
+    {skip: !hasEmulators},
+    async () => {
+      const publisher = await createPasswordPublisher("review", {
+        canPublish: true,
+      });
+      const recordId = `password-publish-${Date.now()}`;
+      const recordReference = database.collection("users")
+          .doc(publisher.userId).collection("records").doc(recordId);
+      const postReference = database.collection("sharedPosts").doc(recordId);
+      await recordReference.set({
+        ownerId: publisher.userId,
+        createdAt: Timestamp.now(),
+        category: "직장",
+        moodEmoji: "😤",
+        moodLabel: "많이 화남",
+        text: "심사 계정으로 익명 글을 공유합니다.",
+        storyId: recordId,
+        shared: false,
+      });
+
+      try {
+        await publisher.publish({recordId});
+        await postReference.update({
+          reactions: [1, 0, 0],
+          reactedBy: ["another-user"],
+          reportCount: 1,
+        });
+        await recordReference.update({shared: false});
+        await publisher.publish({recordId});
+
+        const post = await postReference.get();
+        const record = await recordReference.get();
+        assert.equal(post.data().ownerId, publisher.userId);
+        assert.deepEqual(post.data().reactions, [1, 0, 0]);
+        assert.deepEqual(post.data().reactedBy, ["another-user"]);
+        assert.equal(post.data().reportCount, 1);
+        assert.equal(record.data().shared, true);
+      } finally {
+        await deleteApp(publisher.app);
+      }
+    },
+);
+
+test(
+    "an unapproved password account cannot publish to the shared feed",
+    {skip: !hasEmulators},
+    async () => {
+      const publisher = await createPasswordPublisher("unapproved");
+      const recordId = `unapproved-password-${Date.now()}`;
+      await database.collection("users").doc(publisher.userId)
+          .collection("records").doc(recordId).set({
+            ownerId: publisher.userId,
+            createdAt: Timestamp.now(),
+            category: "직장",
+            moodEmoji: "😤",
+            moodLabel: "많이 화남",
+            text: "승인되지 않은 이메일 계정입니다.",
+            storyId: recordId,
+            shared: false,
+          });
+
+      try {
+        await assert.rejects(
+            publisher.publish({recordId}),
+            (error) => error.code === "functions/permission-denied",
+        );
+        assert.equal(
+            (await database.collection("sharedPosts").doc(recordId).get())
+                .exists,
+            false,
+        );
+      } finally {
+        await deleteApp(publisher.app);
+      }
+    },
+);
+
+test(
+    "password account deletion removes service data and the auth user",
+    {skip: !hasEmulators},
+    async () => {
+      const publisher = await createPasswordPublisher("delete");
+      const userReference = database.collection("users").doc(publisher.userId);
+      await userReference.set({nickname: "reviewer"});
+      await userReference.collection("records").doc("record").set({
+        ownerId: publisher.userId,
+      });
+
+      await publisher.deleteAccount();
+
+      assert.equal((await userReference.get()).exists, false);
+      await assert.rejects(
+          getAdminAuth().getUser(publisher.userId),
+          (error) => error.code === "auth/user-not-found",
+      );
+      await deleteApp(publisher.app);
     },
 );
 

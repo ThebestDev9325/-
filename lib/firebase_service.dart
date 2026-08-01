@@ -30,6 +30,11 @@ class AppFirebaseService {
     )) {
       return 'apple';
     }
+    if (user.providerData.any(
+      (provider) => provider.providerId == 'password',
+    )) {
+      return 'password';
+    }
     return null;
   }
 
@@ -37,6 +42,7 @@ class AppFirebaseService {
     return switch (await linkedProvider()) {
       'kakao' => '카카오 계정 연결됨',
       'apple' => 'Apple 계정 연결됨',
+      'password' => '이메일 계정 연결됨',
       _ => hasLinkedAccount ? '계정 연결됨' : null,
     };
   }
@@ -135,24 +141,59 @@ class AppFirebaseService {
 
   Future<void> saveRecord(EmotionRecord record) async {
     final ownerId = userId;
-    await _db
+    final recordReference = _db
         .collection('users')
         .doc(ownerId)
         .collection('records')
-        .doc(record.id)
-        .set(_recordData(record, shared: false));
-    if (record.shared) await _publishRecord(record.id);
+        .doc(record.id);
+    if (!record.shared) {
+      await recordReference.set(_recordData(record, shared: false));
+      return;
+    }
+    final shouldPublish = await _prepareSharedRecord(record, merge: false);
+    if (shouldPublish) await _publishRecord(record.id);
   }
 
   Future<void> shareRecord(EmotionRecord record) async {
+    final shouldPublish = await _prepareSharedRecord(record, merge: true);
+    if (shouldPublish) await _publishRecord(record.id);
+  }
+
+  Future<bool> isSharedRecordPublished(String recordId) async {
     final ownerId = userId;
-    await _db
+    final snapshot = await _db.collection('sharedPosts').doc(recordId).get();
+    return snapshot.exists && snapshot.data()?['ownerId'] == ownerId;
+  }
+
+  Future<bool> _prepareSharedRecord(
+    EmotionRecord record, {
+    required bool merge,
+  }) async {
+    final ownerId = userId;
+    final recordReference = _db
         .collection('users')
         .doc(ownerId)
         .collection('records')
-        .doc(record.id)
-        .set(_recordData(record, shared: false), SetOptions(merge: true));
-    await _publishRecord(record.id);
+        .doc(record.id);
+    final postReference = _db.collection('sharedPosts').doc(record.id);
+    return _db.runTransaction((transaction) async {
+      final post = await transaction.get(postReference);
+      if (post.exists && post.data()?['ownerId'] != ownerId) {
+        throw FirebaseException(
+          plugin: 'cloud_firestore',
+          code: 'already-exists',
+          message: '같은 식별자의 공유 글이 이미 존재합니다.',
+        );
+      }
+      final isAlreadyPublished = post.exists;
+      final data = _recordData(record, shared: isAlreadyPublished);
+      if (merge) {
+        transaction.set(recordReference, data, SetOptions(merge: true));
+      } else {
+        transaction.set(recordReference, data);
+      }
+      return !isAlreadyPublished;
+    });
   }
 
   Map<String, Object?> _recordData(
@@ -299,6 +340,14 @@ class AppFirebaseService {
     }
     await batch.commit();
     await user.delete();
+  }
+
+  Future<void> deletePasswordAccount() async {
+    final callable = FirebaseFunctions.instanceFor(
+      region: 'asia-northeast3',
+    ).httpsCallable('deletePasswordAccount');
+    await callable.call<void>();
+    await _auth.signOut();
   }
 
   EmotionRecord _recordFromDoc(

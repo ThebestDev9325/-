@@ -1,79 +1,99 @@
-# App Store 재심사 체크리스트
+# App Store 재심사 — 2026-07-31 정보 요청
 
-대상 버전(재제출): `1.9.21 (39)` — 심사 리젝된 `1.9.20 (36)`을 대체
-직전 리젝 제출 ID: `ac68bab8-eec8-41cf-8eba-77efe9f6e5e3` (Review date 2026-07-30)
+- Submission ID: `04b13d14-e196-4b62-9683-786c175b9424`
+- 심사 기기: iPad Air 11-inch (M3)
+- 심사 버전: `1.9.21 (40)`
+- 수정 버전: `1.9.23 (42)`
+- 가이드라인: 2.1 — Information Needed
 
-## 이번 리젝 사유 (실제 원문 기준)
+## 커뮤니티 피드 접근 경로
 
-### Guideline 1.5 - Safety (Support URL)
+로그인 후 모든 주요 화면 하단에 표시되는 내비게이션에서 하트 아이콘의 **공감** 탭을 누른다. 공감 탭이 전체 커뮤니티 피드이며, 본인이 공유한 글은 바로 옆 **내 공유** 탭에서도 확인할 수 있다.
 
-Support URL `https://thebestdev9325.github.io/-/ios-support.html`이 작동하지 않고 에러(404)를 표시.
+## 게시 실패 원인과 수정
 
-- 원인: `docs/ios-support.html`이 origin `main`에 병합되지 않아 GitHub Pages(source: `main` `/docs`)에 배포되지 않음.
-- 해결: PR을 `main`에 병합 → GitHub Pages 배포 → URL 200. 병합 후 반드시 `curl -I`로 200을 확인한다.
+빌드 40에 심사용 이메일 로그인을 추가했지만 앱과 서버의 연결 계정 정책이 달랐다.
 
-### Guideline 2.1(a) - Performance - App Completeness (게시물 저장 실패)
+- 앱은 이메일/비밀번호 사용자를 연결 계정으로 판단했다.
+- `publishSharedRecord` 서버 함수는 카카오와 Apple provider만 허용해 이메일 심사 계정을 `permission-denied`로 거부했다.
+- 글쓰기 화면은 서버 결과 전에 닫혔고, 클라이언트가 모든 저장 예외를 인터넷 연결 오류로 표시했다.
 
-"The app failed to save the post." (iPhone 17 Pro Max, iOS 26.5.2, 인터넷 연결됨)
+빌드 42에서는 다음을 수정했다.
 
-- 근본 원인: 심사 빌드 36은 `sharedPosts`에 **직접 write**(`batch.set`)하는데, 운영 배포된 `firestore.rules`가 `allow create: if false`로 직접 생성을 차단 → `PERMISSION_DENIED` → 게시 저장 실패.
-  - 빌드 36(`1.9.20+36`, 2026-07-24)은 `publishSharedRecord` 도입(`f50daa4`, 2026-07-28) 이전이라 직접 write한다.
-  - 운영 `firestore.rules`(2026-07-28 배포)는 `sharedPosts { allow create: if false }`이다.
-- 해결: 서버 callable(`publishSharedRecord`)로 게시하는 **빌드 39를 제출**한다. 빌드 39는 rules와 정합한다(callable은 admin 권한으로 write하므로 `allow create: if false`의 영향을 받지 않는다). `publishSharedRecord`는 `asia-northeast3`에 배포되어 있다.
+- 서버가 `sharedRecordPublisher` capability를 발급받은 Firebase `password` 심사 계정을 허용한다. 임의 이메일 계정과 Firebase anonymous 사용자의 게시는 계속 차단한다.
+- 게시 transaction이 성공한 뒤에만 글쓰기 화면을 닫는다. 실패하면 입력과 현재 화면을 유지해 재시도할 수 있다.
+- 같은 화면의 재시도는 같은 record ID를 사용해 중복 글을 만들지 않는다.
+- 네트워크 응답 유실로 게시 성공 여부가 불명확하면 같은 record ID로 공개 상태를 확인한다. 확인할 수 없으면 비공개 저장과 화면 이탈을 잠그고 동일 글 재시도만 허용한다.
+- 재시도 준비는 공개 글 존재 여부와 개인 기록의 `shared` 상태를 Firestore transaction에서 함께 맞춰, 기존 공개 글을 다시 비공개 상태로 덮어쓰지 않는다.
+- 네트워크 오류에만 연결 확인 문구를 표시하고, 인증·권한·검증 오류는 원인에 맞게 안내한다.
+- 이메일 계정의 provider 표시와 서버측 회원탈퇴 경로를 추가했다.
 
-## 재발 방지 (배포 순서 — 이번 리젝의 직접 원인)
-
-직접게시 차단 rules(`allow create: if false`)는 **callable 게시를 쓰는 빌드가 심사를 통과한 뒤** 배포한다.
-
-심사 중인 빌드가 `sharedPosts`에 직접 write하는 동안 그 경로를 막는 rules를 먼저 배포하면, 심사 리뷰어가 게시 실패를 겪어 2.1(a)로 리젝된다. rules 배포와 심사 중 빌드의 게시 경로 호환성을 항상 함께 확인한다.
-
-## 재제출 순서 (MUST — 이 순서를 지킨다)
-
-1. PR을 origin `main`에 병합 → `docs/ios-support.html` 배포 → `curl -I https://thebestdev9325.github.io/-/ios-support.html`로 **200 확인** (Guideline 1.5)
-2. `main`에서 빌드 39 아카이브(Xcode) → App Store Connect 업로드
-3. App Store Connect에서 빌드 39 선택 → 아래 심사 노트 첨부 → 재심사 제출 (빌드 36 대체) (Guideline 2.1(a))
-4. `firestore.rules`(`allow create: if false`)와 `functions`(`publishSharedRecord`)는 이미 운영 배포됨 → 빌드 39 게시는 정상 동작한다. 추가 배포는 불필요하다.
-
-## 심사 노트 (Resolution Center 회신 / App Review Notes)
+## Resolution Center 회신 초안
 
 ```text
-Thank you for the detailed feedback. We addressed both issues.
+Hello,
 
-Guideline 1.5 (Support URL):
-The support page is now live and returns HTTP 200:
-https://thebestdev9325.github.io/-/ios-support.html
-It provides in-app support contact, account deletion guidance, and content/user
-reporting information.
+Thank you for your review and for reporting this issue.
 
-Guideline 2.1(a) (The app failed to save the post):
-The reviewed build (36) wrote shared posts directly to Firestore, but our updated
-security rules route all post creation through a server-side callable
-(publishSharedRecord) that performs moderation. This build (39) uses that callable
-path, so saving a post now works correctly with the deployed rules.
+1. How to access the community feed
+After signing in, tap the heart-shaped “공감” (Empathy) tab in the bottom
+navigation bar. This tab is the community feed. A reviewer can also view posts
+created by the current account in the adjacent “내 공유” (My Shares) tab.
 
-Test steps: sign in, write a record, tap Share — the post is saved and appears in
-the community feed. Tested on iPhone 17 Pro Max and iPad Air 11-inch simulators.
+2. Anonymous post creation issue
+We identified a provider-policy mismatch in the reviewed version 1.9.21 (40).
+The app accepted our pre-created email/password review account as a connected
+account, while the server-side publishing function allowed only Kakao and Apple
+providers. The server therefore rejected the publish request. The app also
+closed the writing screen before the server response and incorrectly presented
+all failures as an internet connectivity problem.
+
+We fixed the issue in version 1.9.23 (42). The server now authorizes the supplied
+email/password review account while continuing to block unapproved and Firebase
+anonymous accounts. The writing screen remains open with its content intact if publishing
+fails, retrying uses the same post ID, and only actual network errors display a
+connectivity message. The screen closes only after the server confirms that the
+post was published.
+
+Verification steps:
+1. Sign in with the review email account supplied in App Review Information.
+2. Tap the home action to begin a new entry and complete the writing flow.
+3. On “어떻게 기록할까요?”, tap “공유하기”.
+4. Confirm that the post appears in “내 공유”.
+5. Tap the heart-shaped “공감” tab to open the community feed.
+
+We tested this flow on iPhone and iPad simulators and with Firebase Auth,
+Firestore, and Functions emulators.
 ```
 
-## 이전 리젝(UGC 안전장치) 대응 — 유지
+## 배포 및 제출 순서
 
-빌드 39는 이전 리젝(익명 UGC 안전장치)에 대한 대응을 포함한다. 이번 리젝에서는 재지적되지 않았으나 계속 유지한다.
+운영 계정 상태(2026-08-01): 기존 password 리뷰 계정 1개와 사용자 DB 문서를 확인했고, 다른 claim을 보존한 채 `sharedRecordPublisher: true`를 발급했다. 심사 전 해당 계정으로 다시 로그인해 새 ID token을 받아야 한다.
 
-| 요구사항 | 구현 |
-|---|---|
-| `18+` 연령 등급 | App Store Connect 및 앱 초기 동의 문구 |
-| 부적절한 콘텐츠 필터 | 클라이언트 사전 검사 + `publishSharedRecord` 서버 재검사 |
-| 콘텐츠 신고 | 게시물 메뉴의 신고 사유 선택 + private `contentReports` |
-| 피드에서 즉시 제거 | 신고·숨김 즉시 로컬 피드에서 제거 |
-| 가해 사용자 차단 | 작성자 차단 후 해당 작성자의 모든 게시물 제거·영속화 |
-| 본인 게시물 삭제 | 게시물 메뉴와 내 공유 화면 |
-| 24시간 내 삭제·퇴출 | `deadlineAt` 신고함 + `resolve_content_report` |
-| 앱 내 연락처 | 설정의 고객지원 및 신고 이메일 |
-| 공개 Support URL | GitHub Pages iOS 전용 고객지원 페이지 |
+1. Firebase Auth/Firestore/Functions 에뮬레이터에서 승인된 password 게시·재시도·삭제 및 미승인/anonymous 차단 테스트를 통과시킨다.
+2. App Review Information에 등록한 이메일 계정에 Admin SDK로 `{sharedRecordPublisher: true}` custom claim을 기존 claim과 병합해 발급한다. claim 발급 후 심사 계정을 다시 로그인해 새 ID token을 받는다.
+3. `deletePasswordAccount`와 수정된 `publishSharedRecord`가 포함된 Functions를 운영에 배포한다.
+4. 운영 Functions 배포를 확인한 뒤 `1.9.23 (42)`를 Archive하여 App Store Connect에 업로드한다.
+5. App Review Information의 이메일 심사 계정이 유효한지 확인하고 빌드 42를 선택한다.
+6. 위 회신을 Resolution Center에 제출하고 재심사를 요청한다.
 
-## 후속 (심사와 별개)
+심사 계정 capability 발급 예시(프로젝트 접근 권한이 있는 ADC 환경에서 실행):
 
-운영 hardening 3건(정지 marker provider 우회, 신고 App Check/rate limit, 계정 삭제 시 reaction/report 카운터 정합)은 ETC-641로 분리한다. 심사 통과에 필요하지 않으므로 재제출을 지연시키지 않는다.
+```bash
+cd functions
+REVIEW_EMAIL="App Review Information에 등록한 이메일" node - <<'NODE'
+const {initializeApp} = require("firebase-admin/app");
+const {getAuth} = require("firebase-admin/auth");
+
+initializeApp({projectId: "thebest-dev"});
+getAuth().getUserByEmail(process.env.REVIEW_EMAIL).then((user) =>
+  getAuth().setCustomUserClaims(user.uid, {
+    ...user.customClaims,
+    sharedRecordPublisher: true,
+  }),
+);
+NODE
+```
 
 ## 검증 명령
 
@@ -86,4 +106,4 @@ PATH="/opt/homebrew/opt/openjdk@21/bin:$PATH" \
   "npm --prefix functions test"
 ```
 
-검증 결과: Flutter 68개, Functions/Firestore/Auth Emulator 48개 테스트 통과, iOS Simulator 빌드 통과.
+검증 결과(2026-08-01): 정적 분석 무경고, Flutter 테스트 79개 통과, Firebase Auth/Firestore/Functions 에뮬레이터 테스트 53개 통과, iOS Simulator 빌드 통과. iPad Air 11-inch (M3) 시뮬레이터에 빌드 42를 설치해 앱 시작 화면 렌더링을 확인했다.
