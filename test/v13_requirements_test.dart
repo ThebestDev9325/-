@@ -44,6 +44,23 @@ void main() {
     expect(find.byIcon(Icons.play_circle_fill), findsNWidgets(2));
     expect(find.byKey(const ValueKey('bottom-ad-slot1')), findsOneWidget);
     expect(find.byKey(const ValueKey('bottom-ad-slot2')), findsOneWidget);
+    final slot1 = find.byKey(const ValueKey('bottom-ad-slot1'));
+    final slot1Icon = find.descendant(
+      of: slot1,
+      matching: find.byIcon(Icons.play_circle_fill),
+    );
+    final slot1Title = find.descendant(
+      of: slot1,
+      matching: find.text('조용한 밤의 위로'),
+    );
+    final iconRect = tester.getRect(slot1Icon);
+    final titleRect = tester.getRect(slot1Title);
+    final slotRect = tester.getRect(slot1);
+    expect(titleRect.left - iconRect.right, lessThanOrEqualTo(6));
+    expect(
+      (iconRect.left + titleRect.right) / 2,
+      closeTo(slotRect.center.dx, 1),
+    );
     final slot2Background = tester.widget<DecoratedBox>(
       find.descendant(
         of: find.byKey(const ValueKey('bottom-ad-slot2')),
@@ -51,6 +68,13 @@ void main() {
       ),
     );
     expect((slot2Background.decoration as BoxDecoration).image, isNotNull);
+    final slot2AdLabel = tester.widget<Text>(
+      find.descendant(
+        of: find.byKey(const ValueKey('bottom-ad-slot2')),
+        matching: find.text('광고'),
+      ),
+    );
+    expect(slot2AdLabel.style?.color, Colors.white.withValues(alpha: 0.82));
 
     await tester.pump(const Duration(seconds: 10));
 

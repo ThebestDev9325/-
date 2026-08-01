@@ -1003,33 +1003,35 @@ class _AdSlot extends StatelessWidget {
                 left: 5,
                 top: 3,
                 child: Text(
-                  '광고',
-                  style: TextStyle(
-                    color: colors.onSurfaceVariant.withValues(alpha: 0.55),
-                    fontSize: 9,
-                  ),
+                    '광고',
+                    style: TextStyle(
+                      color: imageProvider != null
+                          ? Colors.white.withValues(alpha: 0.82)
+                          : colors.onSurfaceVariant.withValues(alpha: 0.55),
+                      fontSize: 9,
+                    ),
                 ),
               ),
               Center(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(3, 11, 3, 3),
-                  child: Row(
-                    children: [
-                      if (youtube) ...[
-                        const Icon(
-                          Icons.play_circle_fill,
-                          color: Color(0xFFFF0033),
-                          size: 14,
-                        ),
-                        const SizedBox(width: 2),
-                      ],
-                      Expanded(
-                        child: AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 350),
-                          child: FittedBox(
-                            key: ValueKey(title),
-                            fit: BoxFit.scaleDown,
-                            child: Text(
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 350),
+                      child: FittedBox(
+                        key: ValueKey(title),
+                        fit: BoxFit.scaleDown,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (youtube) ...[
+                              const Icon(
+                                Icons.play_circle_fill,
+                                color: Color(0xFFFF0033),
+                                size: 14,
+                              ),
+                              const SizedBox(width: 4),
+                            ],
+                            Text(
                               title,
                               maxLines: 1,
                               style: TextStyle(
@@ -1038,11 +1040,10 @@ class _AdSlot extends StatelessWidget {
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
-                          ),
+                          ],
                         ),
                       ),
-                    ],
-                  ),
+                    ),
                 ),
               ),
             ],
