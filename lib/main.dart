@@ -436,9 +436,6 @@ class _AppShellState extends State<AppShell> {
     EmotionRecord? record;
     try {
       if (result.shared) {
-        if (!await ensureCommunityPolicy(context) || !mounted) {
-          return WritingShareOutcome.failed;
-        }
         final provider = await AppFirebaseService.instance.linkedProvider();
         if (!mounted) return WritingShareOutcome.failed;
         if (provider == null) {
@@ -451,6 +448,20 @@ class _AppShellState extends State<AppShell> {
           );
           if (!mounted || linked != true) return WritingShareOutcome.failed;
           await _syncSafetyAfterAccountChange();
+          if (!mounted) return WritingShareOutcome.failed;
+        }
+        if (!await ensureCommunityPolicy(context) || !mounted) {
+          return WritingShareOutcome.failed;
+        }
+        final violation = findCommunityContentViolation(
+          text: result.text,
+          category: result.category,
+          moodEmoji: result.moodEmoji,
+          moodLabel: result.moodLabel,
+        );
+        if (violation != null) {
+          _showMessage(violation.message);
+          return WritingShareOutcome.failed;
         }
       }
       activeUserId = AppFirebaseService.instance.currentUserId;
@@ -569,6 +580,19 @@ class _AppShellState extends State<AppShell> {
 
   Future<bool> _shareSavedRecord(EmotionRecord record) async {
     if (record.shared) return true;
+    final provider = await AppFirebaseService.instance.linkedProvider();
+    if (!mounted) return false;
+    if (provider == null) {
+      final linked = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(
+          builder: (_) => AccountLinkPage(onTabSelected: _selectTabFromRoute),
+        ),
+      );
+      if (!mounted || linked != true) return false;
+      await _syncSafetyAfterAccountChange();
+      if (!mounted) return false;
+    }
+    if (!await ensureCommunityPolicy(context) || !mounted) return false;
     final violation = findCommunityContentViolation(
       text: record.text,
       category: record.category,
@@ -578,16 +602,6 @@ class _AppShellState extends State<AppShell> {
     if (violation != null) {
       _showMessage(violation.message);
       return false;
-    }
-    if (!await ensureCommunityPolicy(context) || !mounted) return false;
-    if (!AppFirebaseService.instance.hasLinkedAccount) {
-      final linked = await Navigator.of(context).push<bool>(
-        MaterialPageRoute(
-          builder: (_) => AccountLinkPage(onTabSelected: _selectTabFromRoute),
-        ),
-      );
-      if (!mounted || linked != true) return false;
-      await _syncSafetyAfterAccountChange();
     }
 
     final sharedRecord = EmotionRecord(
@@ -1912,22 +1926,24 @@ class _WritingFlowState extends State<WritingFlow> {
 
   Future<void> _share(StoryItem story) async {
     if (sharing) return;
-    final violation = findCommunityContentViolation(
-      text: textController.text,
-      category: category,
-      moodEmoji: moodEmoji,
-      moodLabel: moodLabel,
-    );
-    if (violation != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(violation.message)),
+    final callback = widget.onShare;
+    if (callback == null) {
+      final violation = findCommunityContentViolation(
+        text: textController.text,
+        category: category,
+        moodEmoji: moodEmoji,
+        moodLabel: moodLabel,
       );
-      return;
+      if (violation != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(violation.message)),
+        );
+        return;
+      }
     }
     setState(() => sharing = true);
     try {
       final result = _writingResult(story, shared: true);
-      final callback = widget.onShare;
       if (callback == null) {
         if (!await ensureCommunityPolicy(context) || !mounted) return;
         if (!AppFirebaseService.instance.hasLinkedAccount) {
@@ -2470,47 +2486,10 @@ class _AccountLinkPageState extends State<AccountLinkPage> {
 
   Future<void> _signInWithEmail() async {
     if (signingIn) return;
-    final emailController = TextEditingController();
-    final passwordController = TextEditingController();
     final credentials = await showDialog<(String, String)>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('이메일로 로그인'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: emailController,
-              keyboardType: TextInputType.emailAddress,
-              autocorrect: false,
-              enableSuggestions: false,
-              decoration: const InputDecoration(labelText: '이메일'),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: passwordController,
-              obscureText: true,
-              decoration: const InputDecoration(labelText: '비밀번호'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('취소'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, (
-              emailController.text.trim(),
-              passwordController.text,
-            )),
-            child: const Text('로그인'),
-          ),
-        ],
-      ),
+      builder: (context) => const _EmailSignInDialog(),
     );
-    emailController.dispose();
-    passwordController.dispose();
     if (credentials == null || !mounted) return;
     final (email, password) = credentials;
     if (email.isEmpty || password.isEmpty) return;
@@ -2604,6 +2583,63 @@ class _AccountLinkPageState extends State<AccountLinkPage> {
         icon: Text(icon, style: const TextStyle(fontWeight: FontWeight.bold)),
         label: Text(label),
       ),
+    );
+  }
+}
+
+class _EmailSignInDialog extends StatefulWidget {
+  const _EmailSignInDialog();
+
+  @override
+  State<_EmailSignInDialog> createState() => _EmailSignInDialogState();
+}
+
+class _EmailSignInDialogState extends State<_EmailSignInDialog> {
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('이메일로 로그인'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _emailController,
+            keyboardType: TextInputType.emailAddress,
+            autocorrect: false,
+            enableSuggestions: false,
+            decoration: const InputDecoration(labelText: '이메일'),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _passwordController,
+            obscureText: true,
+            decoration: const InputDecoration(labelText: '비밀번호'),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('취소'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, (
+            _emailController.text.trim(),
+            _passwordController.text,
+          )),
+          child: const Text('로그인'),
+        ),
+      ],
     );
   }
 }

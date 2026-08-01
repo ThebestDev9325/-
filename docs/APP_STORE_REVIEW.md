@@ -27,6 +27,7 @@
 - 재시도 준비는 공개 글 존재 여부와 개인 기록의 `shared` 상태를 Firestore transaction에서 함께 맞춰, 기존 공개 글을 다시 비공개 상태로 덮어쓰지 않는다.
 - 네트워크 오류에만 연결 확인 문구를 표시하고, 인증·권한·검증 오류는 원인에 맞게 안내한다.
 - 이메일 계정의 provider 표시와 서버측 회원탈퇴 경로를 추가했다.
+- 익명 상태에서 `공유하기`를 누르면 콘텐츠 메타데이터 검사보다 계정 연결 화면을 먼저 표시한다. 계정 연결 후에 운영정책과 게시 콘텐츠를 검사하므로 빈 입력의 일반 오류가 로그인 화면을 가리지 않는다.
 
 ## Resolution Center 회신 초안
 
@@ -54,6 +55,10 @@ anonymous accounts. The writing screen remains open with its content intact if p
 fails, retrying uses the same post ID, and only actual network errors display a
 connectivity message. The screen closes only after the server confirms that the
 post was published.
+
+We also corrected the pre-publish flow so that an unsigned-in reviewer is shown
+the account sign-in screen before content validation. Content validation still
+runs before any record is written or published.
 
 Verification steps:
 1. Sign in with the review email account supplied in App Review Information.
@@ -106,4 +111,4 @@ PATH="/opt/homebrew/opt/openjdk@21/bin:$PATH" \
   "npm --prefix functions test"
 ```
 
-검증 결과(2026-08-01): 정적 분석 무경고, Flutter 테스트 79개 통과, Firebase Auth/Firestore/Functions 에뮬레이터 테스트 53개 통과, iOS Simulator 빌드 통과. iPad Air 11-inch (M3) 시뮬레이터에 빌드 43을 설치해 앱 시작 화면 렌더링을 확인했다.
+검증 결과(2026-08-01): 정적 분석 무경고, Flutter 테스트 81개 통과, Firebase Auth/Firestore/Functions 에뮬레이터 테스트 53개 통과, iOS Simulator 빌드 통과. iPad Air 11-inch (M3) 시뮬레이터에 빌드 43을 설치해 빈 글 공유에서도 계정 연결 화면이 먼저 표시되고, `이메일로 로그인` 입력 중 취소해도 예외 없이 계정 연결 화면을 유지하는 것을 확인했다.

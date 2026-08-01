@@ -4,14 +4,19 @@ import 'package:chameulin/main.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-Future<void> openSharePage(WidgetTester tester) async {
+Future<void> openSharePage(
+  WidgetTester tester, {
+  String? text = '심사 중 작성한 익명 게시물입니다.',
+}) async {
   await tester.tap(find.text('테스트 글쓰기 열기'));
   await tester.pumpAndSettle();
   await tester.tap(find.text('다 적었습니다'));
   await tester.pumpAndSettle();
-  await tester.enterText(find.byType(TextField), '심사 중 작성한 익명 게시물입니다.');
-  tester.testTextInput.hide();
-  await tester.pumpAndSettle();
+  if (text != null) {
+    await tester.enterText(find.byType(TextField), text);
+    tester.testTextInput.hide();
+    await tester.pumpAndSettle();
+  }
   final nextButton = find.widgetWithText(FilledButton, '다음');
   await tester.ensureVisible(nextButton);
   await tester.tap(nextButton);
@@ -62,6 +67,23 @@ Future<void> pumpTestApp(WidgetTester tester,
 }
 
 void main() {
+  testWidgets('앱 공유 callback은 빈 입력도 계정 연결 게이트로 전달한다', (tester) async {
+    final attempts = <WritingResult>[];
+    await pumpTestApp(tester, (result) async {
+      attempts.add(result);
+      return WritingShareOutcome.failed;
+    });
+    await openSharePage(tester, text: null);
+
+    await tester.tap(find.widgetWithText(FilledButton, '공유하기'));
+    await tester.pumpAndSettle();
+
+    expect(attempts, hasLength(1));
+    expect(attempts.single.text, isEmpty);
+    expect(find.text('공유 정보가 올바르지 않습니다.'), findsNothing);
+    expect(find.text('어떻게 기록할까요?'), findsOneWidget);
+  });
+
   testWidgets('공유 실패 후 작성 화면과 동일 identity를 유지해 재시도한다', (tester) async {
     final attempts = <WritingResult>[];
     await pumpTestApp(tester, (result) async {
