@@ -5,15 +5,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 EmotionRecord record(String mood, String emoji, int minute) => EmotionRecord(
-  id: '$mood$minute',
-  createdAt: DateTime(2026, 7, 12, 10, minute),
-  category: '직장',
-  moodEmoji: emoji,
-  moodLabel: mood,
-  text: '기록',
-  story: storyDb.first,
-  shared: false,
-);
+      id: '$mood$minute',
+      createdAt: DateTime(2026, 7, 12, 10, minute),
+      category: '직장',
+      moodEmoji: emoji,
+      moodLabel: mood,
+      text: '기록',
+      story: storyDb.first,
+      shared: false,
+    );
 
 void main() {
   test('날짜 대표 감정은 최빈값이며 동률이면 최신 기록이다', () {
@@ -44,6 +44,13 @@ void main() {
     expect(find.byIcon(Icons.play_circle_fill), findsNWidgets(2));
     expect(find.byKey(const ValueKey('bottom-ad-slot1')), findsOneWidget);
     expect(find.byKey(const ValueKey('bottom-ad-slot2')), findsOneWidget);
+    final slot2Ink = tester.widget<Ink>(
+      find.descendant(
+        of: find.byKey(const ValueKey('bottom-ad-slot2')),
+        matching: find.byType(Ink),
+      ),
+    );
+    expect((slot2Ink.decoration as BoxDecoration).image, isNotNull);
 
     await tester.pump(const Duration(seconds: 10));
 

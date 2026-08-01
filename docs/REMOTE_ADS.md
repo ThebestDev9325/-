@@ -10,6 +10,7 @@
 | `url` | string | 터치 시 외부 브라우저로 열 HTTPS 주소 |
 | `enabled` | boolean | `false`면 해당 칸을 빈 상태로 표시 |
 | `youtube` | boolean | `true`면 YouTube 재생 아이콘 표시 |
+| `imageUrl` | string | 광고 배경으로 사용할 HTTPS 이미지 주소 |
 | `backgroundStart` | number | 배경 시작색 ARGB 정수값 |
 | `backgroundEnd` | number | 배경 끝색 ARGB 정수값 |
 
@@ -23,6 +24,7 @@ ARGB는 Flutter의 `0xFF17283A`를 10진수 `4279707706`처럼 입력한다. 색
 - `url`: `https://www.youtube.com/@slowhug`
 - `enabled`: `true`
 - `youtube`: `true`
+- `imageUrl`: 빈 문자열(앱에 내장된 참을인 배너 사용)
 
 `slot2`:
 
@@ -37,5 +39,6 @@ ARGB는 Flutter의 `0xFF17283A`를 10진수 `4279707706`처럼 입력한다. 색
 - `url`: 빈 문자열
 - `enabled`: `false`
 - `youtube`: `false`
+- `imageUrl`: 빈 문자열
 
 문서가 아직 없거나 네트워크가 끊긴 경우에는 위 기본 광고가 표시된다. 앱 클라이언트의 수정은 보안 규칙으로 금지되므로 Firebase Console 또는 Admin SDK로만 변경한다.

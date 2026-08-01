@@ -31,6 +31,7 @@ flutter:
     - assets/stroke/
     - assets/audio/
     - assets/plants/
+    - assets/branding/
   fonts:
     - family: Pretendard
       fonts:
