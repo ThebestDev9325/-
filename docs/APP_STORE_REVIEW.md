@@ -23,6 +23,7 @@
 - 서버가 `sharedRecordPublisher` capability를 발급받은 Firebase `password` 심사 계정을 허용한다. 임의 이메일 계정과 Firebase anonymous 사용자의 게시는 계속 차단한다.
 - 게시 transaction이 성공한 뒤에만 글쓰기 화면을 닫는다. 실패하면 입력과 현재 화면을 유지해 재시도할 수 있다.
 - 같은 화면의 재시도는 같은 record ID를 사용해 중복 글을 만들지 않는다.
+- 네트워크 응답 유실로 게시 성공 여부가 불명확하면 같은 record ID로 공개 상태를 확인한다. 확인할 수 없으면 비공개 저장과 화면 이탈을 잠그고 동일 글 재시도만 허용한다.
 - 네트워크 오류에만 연결 확인 문구를 표시하고, 인증·권한·검증 오류는 원인에 맞게 안내한다.
 - 이메일 계정의 provider 표시와 서버측 회원탈퇴 경로를 추가했다.
 
@@ -104,4 +105,4 @@ PATH="/opt/homebrew/opt/openjdk@21/bin:$PATH" \
   "npm --prefix functions test"
 ```
 
-검증 결과(2026-08-01): 정적 분석 무경고, Flutter 테스트 77개 통과, Firebase Auth/Firestore/Functions 에뮬레이터 테스트 52개 통과, iOS Simulator 빌드 통과. iPad Air 11-inch (M3) 시뮬레이터에 빌드 42를 설치해 앱 시작 화면 렌더링을 확인했다.
+검증 결과(2026-08-01): 정적 분석 무경고, Flutter 테스트 79개 통과, Firebase Auth/Firestore/Functions 에뮬레이터 테스트 52개 통과, iOS Simulator 빌드 통과. iPad Air 11-inch (M3) 시뮬레이터에 빌드 42를 설치해 앱 시작 화면 렌더링을 확인했다.

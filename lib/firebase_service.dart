@@ -161,6 +161,12 @@ class AppFirebaseService {
     await _publishRecord(record.id);
   }
 
+  Future<bool> isSharedRecordPublished(String recordId) async {
+    final ownerId = userId;
+    final snapshot = await _db.collection('sharedPosts').doc(recordId).get();
+    return snapshot.exists && snapshot.data()?['ownerId'] == ownerId;
+  }
+
   Map<String, Object?> _recordData(
     EmotionRecord record, {
     required bool shared,

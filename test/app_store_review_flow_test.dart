@@ -24,7 +24,7 @@ Future<void> openSharePage(WidgetTester tester) async {
 }
 
 Widget testApp(
-  Future<bool> Function(WritingResult) onShare, {
+  Future<WritingShareOutcome> Function(WritingResult) onShare, {
   ValueChanged<int>? onTabSelected,
 }) {
   return MaterialApp(
@@ -49,8 +49,8 @@ Widget testApp(
   );
 }
 
-Future<void> pumpTestApp(
-    WidgetTester tester, Future<bool> Function(WritingResult) onShare,
+Future<void> pumpTestApp(WidgetTester tester,
+    Future<WritingShareOutcome> Function(WritingResult) onShare,
     {ValueChanged<int>? onTabSelected}) async {
   tester.view.physicalSize = const Size(1024, 1366);
   tester.view.devicePixelRatio = 1;
@@ -66,7 +66,9 @@ void main() {
     final attempts = <WritingResult>[];
     await pumpTestApp(tester, (result) async {
       attempts.add(result);
-      return attempts.length > 1;
+      return attempts.length > 1
+          ? WritingShareOutcome.succeeded
+          : WritingShareOutcome.failed;
     });
     await openSharePage(tester);
 
@@ -108,7 +110,7 @@ void main() {
   });
 
   testWidgets('공유 요청 중 중복 제출과 뒤로가기를 막고 성공 후 닫는다', (tester) async {
-    final completion = Completer<bool>();
+    final completion = Completer<WritingShareOutcome>();
     var calls = 0;
     var tabSelections = 0;
     await pumpTestApp(
@@ -154,8 +156,68 @@ void main() {
     await tester.pump();
     expect(find.text('어떻게 기록할까요?'), findsOneWidget);
 
-    completion.complete(true);
+    completion.complete(WritingShareOutcome.succeeded);
     await tester.pumpAndSettle();
     expect(find.text('어떻게 기록할까요?'), findsNothing);
+  });
+
+  testWidgets('공유 결과가 불명확하면 이탈을 막고 같은 identity 재시도만 허용한다', (tester) async {
+    final attempts = <WritingResult>[];
+    var tabSelections = 0;
+    await pumpTestApp(
+      tester,
+      (result) async {
+        attempts.add(result);
+        return attempts.length > 1
+            ? WritingShareOutcome.succeeded
+            : WritingShareOutcome.indeterminate;
+      },
+      onTabSelected: (_) => tabSelections++,
+    );
+    await openSharePage(tester);
+
+    await tester.tap(find.widgetWithText(FilledButton, '공유하기'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('어떻게 기록할까요?'), findsOneWidget);
+    expect(
+      tester
+          .widget<FilledButton>(
+            find.widgetWithText(FilledButton, '내 기록으로 저장'),
+          )
+          .onPressed,
+      isNull,
+    );
+    expect(find.byType(BackButton), findsNothing);
+    expect(
+      tester
+          .widget<IgnorePointer>(
+            find.byKey(const ValueKey('writing-bottom-navigation-lock')),
+          )
+          .ignoring,
+      isTrue,
+    );
+    tester
+        .widget<NavigationBar>(find.byType(NavigationBar))
+        .onDestinationSelected
+        ?.call(2);
+    await tester.pump();
+    expect(tabSelections, 0);
+    expect(await tester.binding.handlePopRoute(), isTrue);
+    await tester.pump();
+    expect(find.text('어떻게 기록할까요?'), findsOneWidget);
+    expect(
+      tester
+          .widget<FilledButton>(find.widgetWithText(FilledButton, '공유하기'))
+          .onPressed,
+      isNotNull,
+    );
+
+    await tester.tap(find.widgetWithText(FilledButton, '공유하기'));
+    await tester.pumpAndSettle();
+    expect(attempts, hasLength(2));
+    expect(attempts[1].id, attempts[0].id);
+    expect(attempts[1].createdAt, attempts[0].createdAt);
+    expect(find.text('테스트 글쓰기 열기'), findsOneWidget);
   });
 }

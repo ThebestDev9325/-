@@ -29,6 +29,34 @@ void main() {
     );
   });
 
+  test('응답 유실 가능성이 있는 오류만 게시 결과 불명확으로 분류한다', () {
+    expect(
+      isIndeterminateShareError(
+        FirebaseFunctionsException(code: 'unavailable', message: 'offline'),
+      ),
+      isTrue,
+    );
+    expect(
+      isIndeterminateShareError(
+        FirebaseFunctionsException(
+          code: 'deadline-exceeded',
+          message: 'timeout',
+        ),
+      ),
+      isTrue,
+    );
+    expect(
+      isIndeterminateShareError(
+        FirebaseFunctionsException(
+          code: 'permission-denied',
+          message: 'denied',
+        ),
+      ),
+      isFalse,
+    );
+    expect(isIndeterminateShareError(StateError('failure')), isFalse);
+  });
+
   test('Functions의 사용자 조치 가능 메시지는 유지한다', () {
     expect(
       shareFailureMessage(

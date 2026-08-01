@@ -19,6 +19,9 @@ const _actionableFunctionCodes = {
   'resource-exhausted',
 };
 
+bool isIndeterminateShareError(Object error) =>
+    error is FirebaseException && _networkCodes.contains(error.code);
+
 String shareFailureMessage(Object error) {
   if (error is! FirebaseException) return _genericMessage;
   if (_networkCodes.contains(error.code)) return _networkMessage;

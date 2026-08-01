@@ -430,12 +430,17 @@ class _AppShellState extends State<AppShell> {
     await _persistWritingResult(result);
   }
 
-  Future<bool> _persistWritingResult(WritingResult result) async {
+  Future<WritingShareOutcome> _persistWritingResult(
+      WritingResult result) async {
+    String? activeUserId;
+    EmotionRecord? record;
     try {
       if (result.shared) {
-        if (!await ensureCommunityPolicy(context) || !mounted) return false;
+        if (!await ensureCommunityPolicy(context) || !mounted) {
+          return WritingShareOutcome.failed;
+        }
         final provider = await AppFirebaseService.instance.linkedProvider();
-        if (!mounted) return false;
+        if (!mounted) return WritingShareOutcome.failed;
         if (provider == null) {
           final linked = await Navigator.of(context).push<bool>(
             MaterialPageRoute(
@@ -444,15 +449,15 @@ class _AppShellState extends State<AppShell> {
               ),
             ),
           );
-          if (!mounted || linked != true) return false;
+          if (!mounted || linked != true) return WritingShareOutcome.failed;
           await _syncSafetyAfterAccountChange();
         }
       }
-      final activeUserId = AppFirebaseService.instance.currentUserId;
+      activeUserId = AppFirebaseService.instance.currentUserId;
       if (activeUserId == null) {
         throw StateError('공유에 사용할 Firebase 계정이 없습니다.');
       }
-      final record = EmotionRecord(
+      record = EmotionRecord(
         id: result.id,
         createdAt: result.createdAt,
         category: result.category,
@@ -463,29 +468,8 @@ class _AppShellState extends State<AppShell> {
         shared: result.shared,
       );
       await AppFirebaseService.instance.saveRecord(record);
-      if (!mounted) return true;
-      setState(() {
-        currentUserId = activeUserId;
-        records.insert(0, record);
-        if (result.shared) {
-          sharedPosts.removeWhere((post) => post.id == record.id);
-          sharedPosts.insert(
-            0,
-            SharedPost(
-              id: record.id,
-              ownerId: activeUserId,
-              category: record.category,
-              text: record.text,
-              moodEmoji: record.moodEmoji,
-              moodLabel: record.moodLabel,
-              createdAt: record.createdAt,
-            ),
-          );
-          tabIndex = 3;
-        } else {
-          tabIndex = 1;
-        }
-      });
+      if (!mounted) return WritingShareOutcome.succeeded;
+      _applyPersistedWritingRecord(record, activeUserId);
       if (result.storyFeedback != null) {
         unawaited(
           AppFirebaseService.instance.submitStoryFeedback(
@@ -495,16 +479,70 @@ class _AppShellState extends State<AppShell> {
         );
       }
       if (result.shared) unawaited(_refreshAfterSharedRecord());
-      return true;
+      return WritingShareOutcome.succeeded;
     } catch (error, stackTrace) {
       debugPrint('Record save error: $error\n$stackTrace');
+      if (result.shared &&
+          activeUserId != null &&
+          record != null &&
+          isIndeterminateShareError(error)) {
+        try {
+          final published = await AppFirebaseService.instance
+              .isSharedRecordPublished(record.id);
+          if (published) {
+            if (mounted) {
+              _applyPersistedWritingRecord(record, activeUserId);
+              unawaited(_refreshAfterSharedRecord());
+            }
+            return WritingShareOutcome.succeeded;
+          }
+        } catch (reconciliationError, reconciliationStackTrace) {
+          debugPrint(
+            'Shared record reconciliation error: $reconciliationError\n'
+            '$reconciliationStackTrace',
+          );
+        }
+        _showMessage(
+          '게시 결과를 확인할 수 없습니다. 공개 여부가 확정될 때까지 같은 글로 다시 시도해주세요.',
+        );
+        return WritingShareOutcome.indeterminate;
+      }
       _showMessage(
         result.shared
             ? shareFailureMessage(error)
             : '기록을 저장하지 못했습니다. 잠시 후 다시 시도해주세요.',
       );
-      return false;
+      return WritingShareOutcome.failed;
     }
+  }
+
+  void _applyPersistedWritingRecord(
+    EmotionRecord record,
+    String activeUserId,
+  ) {
+    setState(() {
+      currentUserId = activeUserId;
+      records.removeWhere((existing) => existing.id == record.id);
+      records.insert(0, record);
+      if (record.shared) {
+        sharedPosts.removeWhere((post) => post.id == record.id);
+        sharedPosts.insert(
+          0,
+          SharedPost(
+            id: record.id,
+            ownerId: activeUserId,
+            category: record.category,
+            text: record.text,
+            moodEmoji: record.moodEmoji,
+            moodLabel: record.moodLabel,
+            createdAt: record.createdAt,
+          ),
+        );
+        tabIndex = 3;
+      } else {
+        tabIndex = 1;
+      }
+    });
   }
 
   Future<void> _refreshAfterSharedRecord() async {
@@ -1657,11 +1695,13 @@ class WritingResult {
   });
 }
 
+enum WritingShareOutcome { succeeded, failed, indeterminate }
+
 class WritingFlow extends StatefulWidget {
   final String storyStyle;
   final int todayWritingNumber;
   final ValueChanged<int>? onTabSelected;
-  final Future<bool> Function(WritingResult)? onShare;
+  final Future<WritingShareOutcome> Function(WritingResult)? onShare;
   const WritingFlow({
     super.key,
     required this.storyStyle,
@@ -1687,6 +1727,7 @@ class _WritingFlowState extends State<WritingFlow> {
   Timer? strokeTimer;
   bool thirdWritingMessageShown = false;
   bool sharing = false;
+  bool shareResultIndeterminate = false;
   String? recordId;
   DateTime? recordCreatedAt;
 
@@ -1821,19 +1862,20 @@ class _WritingFlowState extends State<WritingFlow> {
 
   @override
   Widget build(BuildContext context) {
+    final exitLocked = sharing || shareResultIndeterminate;
     return PopScope(
-      canPop: !sharing,
+      canPop: !exitLocked,
       child: Scaffold(
-        appBar: AppBar(automaticallyImplyLeading: !sharing),
+        appBar: AppBar(automaticallyImplyLeading: !exitLocked),
         bottomNavigationBar: IgnorePointer(
           key: const ValueKey('writing-bottom-navigation-lock'),
-          ignoring: sharing,
+          ignoring: exitLocked,
           child: AnimatedOpacity(
-            opacity: sharing ? 0.55 : 1,
+            opacity: exitLocked ? 0.55 : 1,
             duration: const Duration(milliseconds: 150),
             child: AppBottomArea(
               selectedIndex: 0,
-              onSelected: sharing ? (_) {} : widget.onTabSelected ?? (_) {},
+              onSelected: exitLocked ? (_) {} : widget.onTabSelected ?? (_) {},
             ),
           ),
         ),
@@ -1901,11 +1943,17 @@ class _WritingFlowState extends State<WritingFlow> {
         if (mounted) Navigator.pop(context, result);
         return;
       }
-      final succeeded = await callback(result);
-      if (mounted && succeeded) Navigator.pop(context);
+      final outcome = await callback(result);
+      if (!mounted) return;
+      if (outcome == WritingShareOutcome.succeeded) {
+        Navigator.pop(context);
+      } else if (outcome == WritingShareOutcome.indeterminate) {
+        setState(() => shareResultIndeterminate = true);
+      }
     } catch (error, stackTrace) {
       debugPrint('Writing share callback error: $error\n$stackTrace');
       if (mounted) {
+        setState(() => shareResultIndeterminate = true);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(shareFailureMessage(error))),
         );
@@ -2257,7 +2305,7 @@ class _WritingFlowState extends State<WritingFlow> {
                 ),
                 const Text('달력에서 다시 볼 수 있습니다.'),
                 FilledButton(
-                  onPressed: sharing
+                  onPressed: sharing || shareResultIndeterminate
                       ? null
                       : () {
                           unawaited(AppAudioService.instance.playComplete());
