@@ -1,6 +1,6 @@
 # 하단 광고 원격 관리
 
-앱은 Firestore의 `adSlots/left`, `adSlots/right` 문서를 실시간으로 구독한다. Firebase Console에서 두 문서를 각각 수정하면 앱 배포나 스토어 업데이트 없이 반영된다.
+앱은 Firestore의 `adSlots/slot1`부터 `adSlots/slot4`까지 네 문서를 실시간으로 구독한다. Firebase Console에서 각 문서를 수정하면 앱 배포나 스토어 업데이트 없이 반영된다.
 
 ## 문서 필드
 
@@ -17,18 +17,25 @@ ARGB는 Flutter의 `0xFF17283A`를 10진수 `4279707706`처럼 입력한다. 색
 
 ## 초기 값
 
-`left`:
+`slot1`:
 
 - `title`: `조용한 밤의 위로`
 - `url`: `https://www.youtube.com/@slowhug`
 - `enabled`: `true`
 - `youtube`: `true`
 
-`right`:
+`slot2`:
 
 - `title`: `참을인`
 - `url`: `https://www.youtube.com/@ThebestDev93`
 - `enabled`: `true`
 - `youtube`: `true`
+
+`slot3`, `slot4`:
+
+- `title`: 빈 문자열
+- `url`: 빈 문자열
+- `enabled`: `false`
+- `youtube`: `false`
 
 문서가 아직 없거나 네트워크가 끊긴 경우에는 위 기본 광고가 표시된다. 앱 클라이언트의 수정은 보안 규칙으로 금지되므로 Firebase Console 또는 Admin SDK로만 변경한다.

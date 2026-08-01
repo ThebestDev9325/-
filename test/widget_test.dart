@@ -27,18 +27,30 @@ void main() {
   });
 
   testWidgets('하단 광고 영역을 동일한 너비로 나눈다', (WidgetTester tester) async {
-    await tester.pumpWidget(const MaterialApp(
-      home: Scaffold(bottomNavigationBar: BottomAdSlots()),
-    ));
+    await tester.pumpWidget(
+      const MaterialApp(home: Scaffold(bottomNavigationBar: BottomAdSlots())),
+    );
 
-    final first =
-        tester.getSize(find.byKey(const ValueKey('bottom-ad-slot-1')));
-    final second =
-        tester.getSize(find.byKey(const ValueKey('bottom-ad-slot-2')));
+    final first = tester.getSize(
+      find.byKey(const ValueKey('bottom-ad-slot-1')),
+    );
+    final second = tester.getSize(
+      find.byKey(const ValueKey('bottom-ad-slot-2')),
+    );
+    final third = tester.getSize(
+      find.byKey(const ValueKey('bottom-ad-slot-3')),
+    );
+    final fourth = tester.getSize(
+      find.byKey(const ValueKey('bottom-ad-slot-4')),
+    );
     expect(first.width, second.width);
-    expect(tester.getSize(find.byType(BottomAdSlots)).height,
-        BottomAdSlots.height);
-    expect(find.text('광고'), findsNWidgets(2));
+    expect(second.width, third.width);
+    expect(third.width, fourth.width);
+    expect(
+      tester.getSize(find.byType(BottomAdSlots)).height,
+      BottomAdSlots.height,
+    );
+    expect(find.text('광고'), findsNWidgets(4));
     expect(find.text('조용한 밤의 위로'), findsOneWidget);
     expect(find.text('NAVER 검색'), findsNothing);
     expect(find.text('참을인'), findsOneWidget);

@@ -77,8 +77,8 @@ class AdSlotConfig {
     required this.backgroundEnd,
   });
 
-  static const leftFallback = AdSlotConfig(
-    id: 'left',
+  static const slot1Fallback = AdSlotConfig(
+    id: 'slot1',
     title: '조용한 밤의 위로',
     url: 'https://www.youtube.com/@slowhug',
     youtube: true,
@@ -86,14 +86,39 @@ class AdSlotConfig {
     backgroundEnd: 0xFF526B56,
   );
 
-  static const rightFallback = AdSlotConfig(
-    id: 'right',
+  static const slot2Fallback = AdSlotConfig(
+    id: 'slot2',
     title: '참을인',
     url: 'https://www.youtube.com/@ThebestDev93',
     youtube: true,
     backgroundStart: 0xFF1D2733,
     backgroundEnd: 0xFF53606B,
   );
+
+  static const slot3Fallback = AdSlotConfig(
+    id: 'slot3',
+    title: '',
+    url: '',
+    enabled: false,
+    backgroundStart: 0xFF394957,
+    backgroundEnd: 0xFF647482,
+  );
+
+  static const slot4Fallback = AdSlotConfig(
+    id: 'slot4',
+    title: '',
+    url: '',
+    enabled: false,
+    backgroundStart: 0xFF394957,
+    backgroundEnd: 0xFF647482,
+  );
+
+  static const fallbacks = <String, AdSlotConfig>{
+    'slot1': slot1Fallback,
+    'slot2': slot2Fallback,
+    'slot3': slot3Fallback,
+    'slot4': slot4Fallback,
+  };
 }
 
 class SharedPost {
