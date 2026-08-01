@@ -3,7 +3,7 @@
 - Submission ID: `04b13d14-e196-4b62-9683-786c175b9424`
 - 심사 기기: iPad Air 11-inch (M3)
 - 심사 버전: `1.9.21 (40)`
-- 수정 버전: `1.9.23 (42)`
+- 수정 버전: `1.9.23 (43)`
 - 가이드라인: 2.1 — Information Needed
 
 ## 커뮤니티 피드 접근 경로
@@ -18,7 +18,7 @@
 - `publishSharedRecord` 서버 함수는 카카오와 Apple provider만 허용해 이메일 심사 계정을 `permission-denied`로 거부했다.
 - 글쓰기 화면은 서버 결과 전에 닫혔고, 클라이언트가 모든 저장 예외를 인터넷 연결 오류로 표시했다.
 
-빌드 42에서는 다음을 수정했다.
+빌드 43에서는 다음을 수정했다.
 
 - 서버가 `sharedRecordPublisher` capability를 발급받은 Firebase `password` 심사 계정을 허용한다. 임의 이메일 계정과 Firebase anonymous 사용자의 게시는 계속 차단한다.
 - 게시 transaction이 성공한 뒤에만 글쓰기 화면을 닫는다. 실패하면 입력과 현재 화면을 유지해 재시도할 수 있다.
@@ -48,7 +48,7 @@ providers. The server therefore rejected the publish request. The app also
 closed the writing screen before the server response and incorrectly presented
 all failures as an internet connectivity problem.
 
-We fixed the issue in version 1.9.23 (42). The server now authorizes the supplied
+We fixed the issue in version 1.9.23 (43). The server now authorizes the supplied
 email/password review account while continuing to block unapproved and Firebase
 anonymous accounts. The writing screen remains open with its content intact if publishing
 fails, retrying uses the same post ID, and only actual network errors display a
@@ -73,8 +73,8 @@ Firestore, and Functions emulators.
 1. Firebase Auth/Firestore/Functions 에뮬레이터에서 승인된 password 게시·재시도·삭제 및 미승인/anonymous 차단 테스트를 통과시킨다.
 2. App Review Information에 등록한 이메일 계정에 Admin SDK로 `{sharedRecordPublisher: true}` custom claim을 기존 claim과 병합해 발급한다. claim 발급 후 심사 계정을 다시 로그인해 새 ID token을 받는다.
 3. `deletePasswordAccount`와 수정된 `publishSharedRecord`가 포함된 Functions를 운영에 배포한다.
-4. 운영 Functions 배포를 확인한 뒤 `1.9.23 (42)`를 Archive하여 App Store Connect에 업로드한다.
-5. App Review Information의 이메일 심사 계정이 유효한지 확인하고 빌드 42를 선택한다.
+4. 운영 Functions 배포를 확인한 뒤 `1.9.23 (43)`를 Archive하여 App Store Connect에 업로드한다.
+5. App Review Information의 이메일 심사 계정이 유효한지 확인하고 빌드 43을 선택한다.
 6. 위 회신을 Resolution Center에 제출하고 재심사를 요청한다.
 
 심사 계정 capability 발급 예시(프로젝트 접근 권한이 있는 ADC 환경에서 실행):
@@ -106,4 +106,4 @@ PATH="/opt/homebrew/opt/openjdk@21/bin:$PATH" \
   "npm --prefix functions test"
 ```
 
-검증 결과(2026-08-01): 정적 분석 무경고, Flutter 테스트 79개 통과, Firebase Auth/Firestore/Functions 에뮬레이터 테스트 53개 통과, iOS Simulator 빌드 통과. iPad Air 11-inch (M3) 시뮬레이터에 빌드 42를 설치해 앱 시작 화면 렌더링을 확인했다.
+검증 결과(2026-08-01): 정적 분석 무경고, Flutter 테스트 79개 통과, Firebase Auth/Firestore/Functions 에뮬레이터 테스트 53개 통과, iOS Simulator 빌드 통과. iPad Air 11-inch (M3) 시뮬레이터에 빌드 43을 설치해 앱 시작 화면 렌더링을 확인했다.
