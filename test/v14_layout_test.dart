@@ -25,7 +25,7 @@ void main() {
       ),
     );
     final title = tester.widget<Text>(find.text('조용한 밤의 위로'));
-    expect(title.style?.color, Colors.white);
+    expect(title.style?.color, Colors.black87);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 

@@ -61,6 +61,21 @@ void main() {
       (iconRect.left + titleRect.right) / 2,
       closeTo(slotRect.center.dx, 1),
     );
+    final slot1Background = tester.widget<DecoratedBox>(
+      find.descendant(
+        of: slot1,
+        matching: find.byType(DecoratedBox),
+      ),
+    );
+    final slot1Image = (slot1Background.decoration as BoxDecoration).image;
+    expect(
+      slot1Image?.image,
+      const AssetImage('assets/branding/quiet_night_banner_2048x1152.jpg'),
+    );
+    expect(
+      slot1Image?.colorFilter,
+      const ColorFilter.mode(Color(0x8CFFFFFF), BlendMode.srcOver),
+    );
     final slot2Background = tester.widget<DecoratedBox>(
       find.descendant(
         of: find.byKey(const ValueKey('bottom-ad-slot2')),

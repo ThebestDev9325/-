@@ -121,6 +121,8 @@ class AppFirebaseService {
           youtube: data['youtube'] as bool? ?? fallback.youtube,
           imageUrl: data['imageUrl'] as String? ?? fallback.imageUrl,
           imageAsset: fallback.imageAsset,
+          darkForeground:
+              data['darkForeground'] as bool? ?? fallback.darkForeground,
           backgroundStart: (data['backgroundStart'] as num?)?.toInt() ??
               fallback.backgroundStart,
           backgroundEnd: (data['backgroundEnd'] as num?)?.toInt() ??

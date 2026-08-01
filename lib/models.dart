@@ -66,6 +66,7 @@ class AdSlotConfig {
   final bool youtube;
   final String imageUrl;
   final String imageAsset;
+  final bool darkForeground;
   final int backgroundStart;
   final int backgroundEnd;
 
@@ -77,6 +78,7 @@ class AdSlotConfig {
     this.youtube = false,
     this.imageUrl = '',
     this.imageAsset = '',
+    this.darkForeground = false,
     required this.backgroundStart,
     required this.backgroundEnd,
   });
@@ -86,6 +88,8 @@ class AdSlotConfig {
     title: '조용한 밤의 위로',
     url: 'https://www.youtube.com/@slowhug',
     youtube: true,
+    imageAsset: 'assets/branding/quiet_night_banner_2048x1152.jpg',
+    darkForeground: true,
     backgroundStart: 0xFF17283A,
     backgroundEnd: 0xFF526B56,
   );
