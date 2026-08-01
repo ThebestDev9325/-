@@ -66,6 +66,8 @@ Firestore, and Functions emulators.
 
 ## 배포 및 제출 순서
 
+운영 계정 상태(2026-08-01): 기존 password 리뷰 계정 1개와 사용자 DB 문서를 확인했고, 다른 claim을 보존한 채 `sharedRecordPublisher: true`를 발급했다. 심사 전 해당 계정으로 다시 로그인해 새 ID token을 받아야 한다.
+
 1. Firebase Auth/Firestore/Functions 에뮬레이터에서 승인된 password 게시·재시도·삭제 및 미승인/anonymous 차단 테스트를 통과시킨다.
 2. App Review Information에 등록한 이메일 계정에 Admin SDK로 `{sharedRecordPublisher: true}` custom claim을 기존 claim과 병합해 발급한다. claim 발급 후 심사 계정을 다시 로그인해 새 ID token을 받는다.
 3. `deletePasswordAccount`와 수정된 `publishSharedRecord`가 포함된 Functions를 운영에 배포한다.
