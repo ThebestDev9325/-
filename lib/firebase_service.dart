@@ -201,7 +201,7 @@ class AppFirebaseService {
 
   Future<void> report(
     String postId,
-    CommunityReportReason reason, {
+    String reason, {
     String? ownerId,
   }) async {
     final callable = FirebaseFunctions.instanceFor(
@@ -209,7 +209,8 @@ class AppFirebaseService {
     ).httpsCallable('reportSharedPost');
     await callable.call<void>(<String, dynamic>{
       'postId': postId,
-      'reason': reason.wireName,
+      'reason': CommunityReportReason.other.wireName,
+      'detail': reason,
       if (ownerId != null) 'ownerId': ownerId,
     });
   }

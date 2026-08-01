@@ -1,4 +1,3 @@
-import 'package:chameulin/community_safety.dart';
 import 'package:chameulin/main.dart';
 import 'package:chameulin/models.dart';
 import 'package:flutter/material.dart';
@@ -18,7 +17,7 @@ Widget card({
   bool mine = false,
   ValueChanged<SharedPost>? onHide,
   ValueChanged<SharedPost>? onBlock,
-  void Function(SharedPost, CommunityReportReason)? onReport,
+  void Function(SharedPost, String)? onReport,
   ValueChanged<SharedPost>? onDelete,
 }) {
   return MaterialApp(
@@ -63,8 +62,8 @@ void main() {
     expect(find.text('이 게시물 숨기기'), findsOneWidget);
   });
 
-  testWidgets('신고 사유를 선택해 게시물을 신고할 수 있다', (tester) async {
-    CommunityReportReason? reason;
+  testWidgets('신고 사유를 직접 입력해 게시물을 신고할 수 있다', (tester) async {
+    String? reason;
     await tester.pumpWidget(
       card(onReport: (_, selectedReason) => reason = selectedReason),
     );
@@ -72,10 +71,18 @@ void main() {
     await openActions(tester);
     await tester.tap(find.text('신고하기'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('괴롭힘 또는 비방'));
+    expect(find.text('신고 사유'), findsOneWidget);
+    expect(find.text('신고 사유를 입력해주세요.'), findsOneWidget);
+    final submit = find.widgetWithText(FilledButton, '신고하기');
+    expect(tester.widget<FilledButton>(submit).onPressed, isNull);
+
+    await tester.enterText(find.byType(TextField), '욕설이 포함된 게시물입니다.');
+    await tester.pump();
+    expect(tester.widget<FilledButton>(submit).onPressed, isNotNull);
+    await tester.tap(submit);
     await tester.pumpAndSettle();
 
-    expect(reason, CommunityReportReason.harassment);
+    expect(reason, '욕설이 포함된 게시물입니다.');
   });
 
   testWidgets('내 공유 게시물을 삭제할 수 있다', (tester) async {

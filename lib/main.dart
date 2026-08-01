@@ -667,7 +667,7 @@ class _AppShellState extends State<AppShell> {
     }
   }
 
-  Future<void> _report(SharedPost post, CommunityReportReason reason) async {
+  Future<void> _report(SharedPost post, String reason) async {
     // 서버 응답을 기다리는 동안 피드 스트림이 다시 emit해도 게시물이 되살아나지
     // 않도록 숨김 상태를 먼저 반영한다. 이미 숨겨져 있던 게시물이면 실패해도 숨김을
     // 유지하고, 이번 신고로 새로 숨긴 경우에만 되돌린다.
@@ -1043,8 +1043,8 @@ class _AdSlot extends StatelessWidget {
                               maxLines: 1,
                               style: TextStyle(
                                 color: titleColor,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
                               ),
                             ),
                           ],
@@ -3131,7 +3131,7 @@ class EmpathyPage extends StatefulWidget {
   final String currentUserId;
   final void Function(SharedPost, int) onReact;
   final ValueChanged<SharedPost>? onReport;
-  final void Function(SharedPost, CommunityReportReason)? onReportWithReason;
+  final void Function(SharedPost, String)? onReportWithReason;
   final ValueChanged<SharedPost>? onHide;
   final ValueChanged<SharedPost>? onBlock;
   final ValueChanged<SharedPost>? onDelete;
@@ -3338,13 +3338,59 @@ class _CompactDateDropdown extends StatelessWidget {
 
 enum CommunityPostAction { report, hide, delete }
 
+class _ReportReasonDialog extends StatefulWidget {
+  const _ReportReasonDialog();
+
+  @override
+  State<_ReportReasonDialog> createState() => _ReportReasonDialogState();
+}
+
+class _ReportReasonDialogState extends State<_ReportReasonDialog> {
+  final controller = TextEditingController();
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+        title: const Text('신고 사유'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          minLines: 3,
+          maxLines: 5,
+          maxLength: 300,
+          onChanged: (_) => setState(() {}),
+          decoration: const InputDecoration(
+            hintText: '신고 사유를 입력해주세요.',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            onPressed: controller.text.trim().isEmpty
+                ? null
+                : () => Navigator.pop(context, controller.text.trim()),
+            child: const Text('신고하기'),
+          ),
+        ],
+      );
+}
+
 class SharedPostCard extends StatelessWidget {
   final SharedPost post;
   final bool mine;
   final bool reactionEnabled;
   final void Function(SharedPost, int) onReact;
   final ValueChanged<SharedPost>? onReport;
-  final void Function(SharedPost, CommunityReportReason)? onReportWithReason;
+  final void Function(SharedPost, String)? onReportWithReason;
   final ValueChanged<SharedPost>? onHide;
   final ValueChanged<SharedPost>? onBlock;
   final ValueChanged<SharedPost>? onDelete;
@@ -3367,27 +3413,9 @@ class SharedPostCard extends StatelessWidget {
   ) async {
     switch (action) {
       case CommunityPostAction.report:
-        final reason = await showModalBottomSheet<CommunityReportReason>(
+        final reason = await showDialog<String>(
           context: context,
-          showDragHandle: true,
-          builder: (context) => SafeArea(
-            child: ListView(
-              shrinkWrap: true,
-              children: [
-                const ListTile(
-                  title: Text(
-                    '신고 사유를 선택해 주세요',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-                for (final reason in CommunityReportReason.values)
-                  ListTile(
-                    title: Text(reason.label),
-                    onTap: () => Navigator.pop(context, reason),
-                  ),
-              ],
-            ),
-          ),
+          builder: (_) => const _ReportReasonDialog(),
         );
         if (reason == null) return;
         if (onReportWithReason != null) {

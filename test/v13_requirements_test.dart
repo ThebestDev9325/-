@@ -89,7 +89,11 @@ void main() {
         matching: find.text('광고'),
       ),
     );
-    expect(slot2AdLabel.style?.color, Colors.white.withValues(alpha: 0.82));
+    expect(slot2AdLabel.style?.color, Colors.black87.withValues(alpha: 0.65));
+    final slot2Title = tester.widget<Text>(find.text('참을인'));
+    expect(slot2Title.style?.color, Colors.black87);
+    expect(slot2Title.style?.fontSize, 14);
+    expect(slot2Title.style?.fontWeight, FontWeight.w800);
 
     await tester.pump(const Duration(seconds: 10));
 
