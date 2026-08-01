@@ -31,26 +31,16 @@ void main() {
       const MaterialApp(home: Scaffold(bottomNavigationBar: BottomAdSlots())),
     );
 
-    final first = tester.getSize(
-      find.byKey(const ValueKey('bottom-ad-slot-1')),
-    );
+    final first = tester.getSize(find.byKey(const ValueKey('bottom-ad-slot1')));
     final second = tester.getSize(
-      find.byKey(const ValueKey('bottom-ad-slot-2')),
-    );
-    final third = tester.getSize(
-      find.byKey(const ValueKey('bottom-ad-slot-3')),
-    );
-    final fourth = tester.getSize(
-      find.byKey(const ValueKey('bottom-ad-slot-4')),
+      find.byKey(const ValueKey('bottom-ad-slot2')),
     );
     expect(first.width, second.width);
-    expect(second.width, third.width);
-    expect(third.width, fourth.width);
     expect(
       tester.getSize(find.byType(BottomAdSlots)).height,
       BottomAdSlots.height,
     );
-    expect(find.text('광고'), findsNWidgets(4));
+    expect(find.text('광고'), findsNWidgets(2));
     expect(find.text('조용한 밤의 위로'), findsOneWidget);
     expect(find.text('NAVER 검색'), findsNothing);
     expect(find.text('참을인'), findsOneWidget);

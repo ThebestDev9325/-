@@ -1,6 +1,6 @@
 # 하단 광고 원격 관리
 
-앱은 Firestore의 `adSlots/slot1`부터 `adSlots/slot4`까지 네 문서를 실시간으로 구독한다. Firebase Console에서 각 문서를 수정하면 앱 배포나 스토어 업데이트 없이 반영된다.
+앱은 Firestore의 `adSlots/slot1`부터 `adSlots/slot4`까지 네 문서를 실시간으로 구독한다. 화면에는 두 칸만 표시하며 `slot1·slot2`와 `slot3·slot4`가 10초마다 교대된다. Firebase Console에서 각 문서를 수정하면 앱 배포나 스토어 업데이트 없이 반영된다.
 
 ## 문서 필드
 
