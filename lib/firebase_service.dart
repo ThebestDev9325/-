@@ -97,13 +97,13 @@ class AppFirebaseService {
         .limit(300)
         .snapshots()
         .map((snapshot) {
-          final posts = <SharedPost>[];
-          for (final document in snapshot.docs) {
-            final post = _tryPostFromDoc(document);
-            if (post != null) posts.add(post);
-          }
-          return posts;
-        });
+      final posts = <SharedPost>[];
+      for (final document in snapshot.docs) {
+        final post = _tryPostFromDoc(document);
+        if (post != null) posts.add(post);
+      }
+      return posts;
+    });
   }
 
   Stream<Map<String, AdSlotConfig>> watchAdSlots() {
@@ -119,11 +119,11 @@ class AppFirebaseService {
           url: data['url'] as String? ?? fallback.url,
           enabled: data['enabled'] as bool? ?? fallback.enabled,
           youtube: data['youtube'] as bool? ?? fallback.youtube,
-          backgroundStart:
-              (data['backgroundStart'] as num?)?.toInt() ??
+          imageUrl: data['imageUrl'] as String? ?? fallback.imageUrl,
+          imageAsset: fallback.imageAsset,
+          backgroundStart: (data['backgroundStart'] as num?)?.toInt() ??
               fallback.backgroundStart,
-          backgroundEnd:
-              (data['backgroundEnd'] as num?)?.toInt() ??
+          backgroundEnd: (data['backgroundEnd'] as num?)?.toInt() ??
               fallback.backgroundEnd,
         );
       }
@@ -214,11 +214,8 @@ class AppFirebaseService {
 
   Future<void> deleteSharedPost(String postId) async {
     final postReference = _db.collection('sharedPosts').doc(postId);
-    final recordReference = _db
-        .collection('users')
-        .doc(userId)
-        .collection('records')
-        .doc(postId);
+    final recordReference =
+        _db.collection('users').doc(userId).collection('records').doc(postId);
     await _db.runTransaction((transaction) async {
       final post = await transaction.get(postReference);
       if (post.exists && post.data()?['ownerId'] != userId) {
@@ -266,11 +263,8 @@ class AppFirebaseService {
   Future<void> deleteMyData() async {
     final user = _auth.currentUser;
     if (user == null) return;
-    final records = await _db
-        .collection('users')
-        .doc(user.uid)
-        .collection('records')
-        .get();
+    final records =
+        await _db.collection('users').doc(user.uid).collection('records').get();
     final shared = await _db
         .collection('sharedPosts')
         .where('ownerId', isEqualTo: user.uid)

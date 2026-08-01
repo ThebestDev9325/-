@@ -64,6 +64,8 @@ class AdSlotConfig {
   final String url;
   final bool enabled;
   final bool youtube;
+  final String imageUrl;
+  final String imageAsset;
   final int backgroundStart;
   final int backgroundEnd;
 
@@ -73,6 +75,8 @@ class AdSlotConfig {
     required this.url,
     this.enabled = true,
     this.youtube = false,
+    this.imageUrl = '',
+    this.imageAsset = '',
     required this.backgroundStart,
     required this.backgroundEnd,
   });
@@ -91,6 +95,7 @@ class AdSlotConfig {
     title: '참을인',
     url: 'https://www.youtube.com/@ThebestDev93',
     youtube: true,
+    imageAsset: 'assets/branding/play_feature_graphic_1024x500.png',
     backgroundStart: 0xFF1D2733,
     backgroundEnd: 0xFF53606B,
   );
