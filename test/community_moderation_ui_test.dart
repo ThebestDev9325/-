@@ -53,15 +53,14 @@ void main() {
     expect(hidden?.id, 'post');
   });
 
-  testWidgets('익명 작성자를 차단할 수 있다', (tester) async {
-    SharedPost? blocked;
-    await tester.pumpWidget(card(onBlock: (value) => blocked = value));
+  testWidgets('신고 메뉴는 사이렌 아이콘이며 작성자 차단을 제공하지 않는다', (tester) async {
+    await tester.pumpWidget(card());
 
+    expect(find.byIcon(Icons.notification_important_rounded), findsOneWidget);
     await openActions(tester);
-    await tester.tap(find.text('이 작성자 차단'));
-    await tester.pumpAndSettle();
-
-    expect(blocked?.ownerId, 'owner');
+    expect(find.text('이 작성자 차단'), findsNothing);
+    expect(find.text('신고하기'), findsOneWidget);
+    expect(find.text('이 게시물 숨기기'), findsOneWidget);
   });
 
   testWidgets('신고 사유를 선택해 게시물을 신고할 수 있다', (tester) async {

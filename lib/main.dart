@@ -921,6 +921,7 @@ class _BottomAdSlotsState extends State<BottomAdSlots> {
                   imageUrl: slots[index].enabled ? slots[index].imageUrl : '',
                   imageAsset:
                       slots[index].enabled ? slots[index].imageAsset : '',
+                  darkForeground: slots[index].darkForeground,
                   background: slots[index].enabled
                       ? [
                           Color(slots[index].backgroundStart),
@@ -950,6 +951,7 @@ class _AdSlot extends StatelessWidget {
     this.youtube = false,
     this.imageUrl = '',
     this.imageAsset = '',
+    this.darkForeground = false,
     this.background,
   });
   final String label;
@@ -959,6 +961,7 @@ class _AdSlot extends StatelessWidget {
   final bool youtube;
   final String imageUrl;
   final String imageAsset;
+  final bool darkForeground;
   final List<Color>? background;
 
   @override
@@ -970,7 +973,9 @@ class _AdSlot extends StatelessWidget {
     } else if (imageAsset.isNotEmpty) {
       imageProvider = AssetImage(imageAsset);
     }
-    final titleColor = imageProvider != null
+    final titleColor = darkForeground
+        ? Colors.black87
+        : imageProvider != null
         ? Colors.white
         : youtube && Theme.of(context).brightness == Brightness.light
             ? Colors.black87
@@ -986,8 +991,8 @@ class _AdSlot extends StatelessWidget {
                   image: imageProvider,
                   fit: BoxFit.cover,
                   colorFilter: const ColorFilter.mode(
-                    Colors.black38,
-                    BlendMode.darken,
+                    Color(0x8CFFFFFF),
+                    BlendMode.srcOver,
                   ),
                   onError: (_, __) {},
                 ),
@@ -1005,7 +1010,9 @@ class _AdSlot extends StatelessWidget {
                 child: Text(
                     '광고',
                     style: TextStyle(
-                      color: imageProvider != null
+                      color: darkForeground
+                          ? Colors.black87.withValues(alpha: 0.65)
+                          : imageProvider != null
                           ? Colors.white.withValues(alpha: 0.82)
                           : colors.onSurfaceVariant.withValues(alpha: 0.55),
                       fontSize: 9,
@@ -3329,7 +3336,7 @@ class _CompactDateDropdown extends StatelessWidget {
   }
 }
 
-enum CommunityPostAction { report, hide, block, delete }
+enum CommunityPostAction { report, hide, delete }
 
 class SharedPostCard extends StatelessWidget {
   final SharedPost post;
@@ -3391,9 +3398,6 @@ class SharedPostCard extends StatelessWidget {
         return;
       case CommunityPostAction.hide:
         onHide?.call(post);
-        return;
-      case CommunityPostAction.block:
-        onBlock?.call(post);
         return;
       case CommunityPostAction.delete:
         onDelete?.call(post);
@@ -3462,12 +3466,8 @@ class SharedPostCard extends StatelessWidget {
                             value: CommunityPostAction.hide,
                             child: Text('이 게시물 숨기기'),
                           ),
-                          PopupMenuItem(
-                            value: CommunityPostAction.block,
-                            child: Text('이 작성자 차단'),
-                          ),
                         ],
-                  icon: const Icon(Icons.more_horiz),
+                  icon: const Icon(Icons.notification_important_rounded),
                 ),
               ),
             ],
