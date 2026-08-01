@@ -100,6 +100,7 @@ class AdSlotConfig {
     url: 'https://www.youtube.com/@ThebestDev93',
     youtube: true,
     imageAsset: 'assets/branding/play_feature_graphic_1024x500.png',
+    darkForeground: true,
     backgroundStart: 0xFF1D2733,
     backgroundEnd: 0xFF53606B,
   );

@@ -158,6 +158,15 @@ exports.reportSharedPost = onCall({region: "asia-northeast3"}, async (request) =
   if (!reportReasons.has(reason)) {
     throw new HttpsError("invalid-argument", "신고 사유가 올바르지 않습니다.");
   }
+  const requestedDetail = request.data && request.data.detail;
+  const detail = typeof requestedDetail === "string" ?
+    requestedDetail.trim() : "";
+  if (reason === "other" && (detail.length === 0 || detail.length > 300)) {
+    throw new HttpsError(
+        "invalid-argument",
+        "신고 사유를 300자 이내로 입력해 주세요.",
+    );
+  }
   const expectedOwnerId = request.data && request.data.ownerId;
   if (expectedOwnerId != null && !validDocumentId(expectedOwnerId)) {
     throw new HttpsError(
@@ -263,6 +272,7 @@ exports.reportSharedPost = onCall({region: "asia-northeast3"}, async (request) =
       ownerId,
       reporterId: uid,
       reason,
+      ...(detail ? {detail} : {}),
       status: "pending",
       createdAt: now,
       deadlineAt: Timestamp.fromMillis(

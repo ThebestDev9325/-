@@ -741,6 +741,31 @@ test(
 );
 
 test(
+    "callable stores a reporter's custom reason",
+    {skip: !hasEmulators},
+    async () => {
+      const postId = `callable-custom-reason-${Date.now()}`;
+      await createPost(postId);
+
+      await reportSharedPost({
+        postId,
+        reason: "other",
+        detail: "욕설이 포함된 게시물입니다.",
+      });
+      const reports = await database.collection("contentReports")
+          .where("postId", "==", postId)
+          .get();
+
+      assert.equal(reports.size, 1);
+      assert.equal(reports.docs[0].data().reason, "other");
+      assert.equal(
+          reports.docs[0].data().detail,
+          "욕설이 포함된 게시물입니다.",
+      );
+    },
+);
+
+test(
     "a reporter can flag every objectionable post without an hourly cap",
     {skip: !hasEmulators},
     async () => {

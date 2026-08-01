@@ -15,7 +15,7 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  testWidgets('다크모드 유튜브 광고 제목은 흰색으로 표시된다', (tester) async {
+  testWidgets('다크모드에서도 밝은 배너 광고 제목은 검은색으로 표시된다', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
         theme: ThemeData.light(),
