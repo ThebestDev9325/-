@@ -60,6 +60,22 @@ test("clients cannot publish directly to the shared feed", async () => {
   );
 });
 
+test("signed-in users can read ads but app clients cannot edit them", async () => {
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), "adSlots/left"), {
+      title: "조용한 밤의 위로",
+      enabled: true,
+    });
+  });
+  const signedIn = environment.authenticatedContext("viewer").firestore();
+  const signedOut = environment.unauthenticatedContext().firestore();
+  await assertSucceeds(getDoc(doc(signedIn, "adSlots/left")));
+  await assertFails(getDoc(doc(signedOut, "adSlots/left")));
+  await assertFails(
+      updateDoc(doc(signedIn, "adSlots/left"), {title: "변경"}),
+  );
+});
+
 test("invalid category and arbitrary fields are rejected", async () => {
   const firestore = environment.authenticatedContext("owner").firestore();
   await assertFails(

@@ -19,7 +19,7 @@ void main() {
     });
     await tester.pumpWidget(const ChameulinApp());
     await tester.pumpAndSettle();
-    expect(find.text('참을인'), findsOneWidget);
+    expect(find.text('참을인'), findsNWidgets(2));
     expect(find.text('내 마음을 위해'), findsOneWidget);
     expect(find.text('참을인 하나'), findsOneWidget);
     expect(find.text('터치해보세요'), findsOneWidget);
@@ -41,7 +41,7 @@ void main() {
     expect(find.text('광고'), findsNWidgets(2));
     expect(find.text('조용한 밤의 위로'), findsOneWidget);
     expect(find.text('NAVER 검색'), findsNothing);
-    expect(find.text('참을인'), findsNothing);
+    expect(find.text('참을인'), findsOneWidget);
     expect(find.text('Google'), findsNothing);
 
     await tester.pumpWidget(const SizedBox.shrink());

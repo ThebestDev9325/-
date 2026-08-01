@@ -78,6 +78,13 @@ service cloud.firestore {
         && resource.data.ownerId == request.auth.uid;
     }
 
+    // Ads are managed only through the Firebase Console/Admin SDK. App clients
+    // can watch them so each slot changes without shipping a new app version.
+    match /adSlots/{slotId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
     match /contentReports/{reportId} {
       allow read, write: if false;
     }
