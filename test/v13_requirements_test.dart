@@ -101,6 +101,12 @@ void main() {
     expect(find.byKey(const ValueKey('bottom-ad-slot3')), findsOneWidget);
     expect(find.byKey(const ValueKey('bottom-ad-slot4')), findsOneWidget);
     expect(find.text('광고 문의하기'), findsNWidgets(2));
+    final inquiryColor = Theme.of(
+      tester.element(find.byKey(const ValueKey('bottom-ad-slot3'))),
+    ).colorScheme.onSurfaceVariant;
+    for (final title in tester.widgetList<Text>(find.text('광고 문의하기'))) {
+      expect(title.style?.color, inquiryColor);
+    }
     expect(find.byIcon(Icons.play_circle_fill), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
   });
