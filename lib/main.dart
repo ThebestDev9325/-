@@ -1015,7 +1015,9 @@ class _BottomAdSlotsState extends State<BottomAdSlots> {
                   title: slots[index].enabled
                       ? slots[index].title
                       : '광고 문의하기',
-                  color: Colors.white,
+                  color: slots[index].enabled
+                      ? Colors.white
+                      : colors.onSurfaceVariant,
                   youtube: slots[index].enabled && slots[index].youtube,
                   imageUrl: slots[index].enabled ? slots[index].imageUrl : '',
                   imageAsset:
