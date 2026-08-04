@@ -41,4 +41,7 @@ ARGB는 Flutter의 `0xFF17283A`를 10진수 `4279707706`처럼 입력한다. 색
 - `youtube`: `false`
 - `imageUrl`: 빈 문자열
 
+비활성화된 칸은 앱에서 `광고 문의하기`로 표시되며, 터치하면
+`https://thebestdev9325.github.io/-/advertise.html`을 외부 브라우저로 연다.
+
 문서가 아직 없거나 네트워크가 끊긴 경우에는 위 기본 광고가 표시된다. 앱 클라이언트의 수정은 보안 규칙으로 금지되므로 Firebase Console 또는 Admin SDK로만 변경한다.

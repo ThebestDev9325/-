@@ -936,6 +936,9 @@ class BottomAdSlots extends StatefulWidget {
   State<BottomAdSlots> createState() => _BottomAdSlotsState();
 }
 
+const _advertisingInquiryUrl =
+    'https://thebestdev9325.github.io/-/advertise.html';
+
 class _BottomAdSlotsState extends State<BottomAdSlots> {
   StreamSubscription<Map<String, AdSlotConfig>>? _adSubscription;
   Timer? _rotationTimer;
@@ -1008,8 +1011,10 @@ class _BottomAdSlotsState extends State<BottomAdSlots> {
                 child: _AdSlot(
                   key: ValueKey('bottom-ad-${slots[index].id}'),
                   label:
-                      '광고 영역 ${firstSlotIndex + index + 1}: ${slots[index].enabled ? slots[index].title : '비어 있음'}',
-                  title: slots[index].enabled ? slots[index].title : '',
+                      '광고 영역 ${firstSlotIndex + index + 1}: ${slots[index].enabled ? slots[index].title : '광고 문의하기'}',
+                  title: slots[index].enabled
+                      ? slots[index].title
+                      : '광고 문의하기',
                   color: Colors.white,
                   youtube: slots[index].enabled && slots[index].youtube,
                   imageUrl: slots[index].enabled ? slots[index].imageUrl : '',
@@ -1022,9 +1027,11 @@ class _BottomAdSlotsState extends State<BottomAdSlots> {
                           Color(slots[index].backgroundEnd),
                         ]
                       : null,
-                  onTap: slots[index].enabled && slots[index].url.isNotEmpty
-                      ? () => _open(slots[index].url)
-                      : null,
+                  onTap: () => _open(
+                    slots[index].enabled && slots[index].url.isNotEmpty
+                        ? slots[index].url
+                        : _advertisingInquiryUrl,
+                  ),
                 ),
               ),
             ],
