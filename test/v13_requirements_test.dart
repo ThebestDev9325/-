@@ -100,6 +100,7 @@ void main() {
     expect(find.text('광고'), findsNWidgets(2));
     expect(find.byKey(const ValueKey('bottom-ad-slot3')), findsOneWidget);
     expect(find.byKey(const ValueKey('bottom-ad-slot4')), findsOneWidget);
+    expect(find.text('광고 문의하기'), findsNWidgets(2));
     expect(find.byIcon(Icons.play_circle_fill), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
   });
