@@ -31,10 +31,10 @@ void main() {
   });
 
   test('위로 이야기에는 주요 감정 상황이 포함된다', () {
-    expect(storyDb.length, 300);
+    expect(storyDb.length, 326);
     final ids = storyDb.map((story) => story.id).toSet();
-    expect(ids.length, 300);
-    expect(storyDb.map((story) => story.body).toSet().length, 300);
+    expect(ids.length, storyDb.length);
+    expect(storyDb.map((story) => story.body).toSet().length, storyDb.length);
     for (final story in storyDb) {
       expect(story.body.length, lessThanOrEqualTo(100), reason: story.id);
     }

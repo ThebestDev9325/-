@@ -1,4 +1,5 @@
 import '../models.dart';
+import 'situation_stories.dart';
 
 const _storySeeds = <StoryItem>[
   StoryItem(
@@ -327,6 +328,7 @@ String _firstSentences(String text, int count) =>
     text.split(RegExp(r'(?<=[.!?])\s+')).take(count).join(' ').trim();
 
 final storyDb = <StoryItem>[
+  ...situationStories,
   for (final seed in _storySeeds) ...[
     StoryItem(
       id: seed.id,

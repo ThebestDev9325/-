@@ -12,6 +12,7 @@ import 'daily_positive_store.dart';
 import 'data/daily_quotes.dart';
 import 'data/positive_stories.dart';
 import 'data/story_db.dart';
+import 'story_recommender.dart';
 import 'firebase_options.dart';
 import 'firebase_service.dart';
 import 'kakao_auth_service.dart';
@@ -22,6 +23,8 @@ import 'positive_bookmark_store.dart';
 import 'shared_preferences_community_safety_store.dart';
 import 'share_failure_message.dart';
 import 'text_layout.dart';
+
+export 'story_recommender.dart' show recommendStory;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -2781,65 +2784,6 @@ bool isPointInsideCanvas(Offset point, Size size) =>
     point.dy >= 0 &&
     point.dx <= size.width &&
     point.dy <= size.height;
-
-StoryItem recommendStory(
-  String text,
-  String category,
-  String style, [
-  String mood = '',
-]) {
-  final lower = '$text $mood'.trim().toLowerCase();
-  final emotions = <String>{};
-  if (RegExp(r'실수|자책|후회|용서|망쳤|못했|실패|미안').hasMatch(lower)) {
-    emotions.addAll(['자책', '실수']);
-  }
-  if (RegExp(r'계속|곱씹|하루종일|반복').hasMatch(lower)) emotions.add('반추');
-  if (RegExp(r'서운|섭섭|슬퍼|실망|상처|배신|외로').hasMatch(lower)) {
-    emotions.add('서운함');
-  }
-  if (RegExp(r'카톡|문자|답장|보내|전화').hasMatch(lower)) emotions.add('충동');
-  if (RegExp(r'억울|부당|누명|해명|무시|차별').hasMatch(lower)) {
-    emotions.add('억울함');
-  }
-  if (RegExp(r'화나|분노|짜증|열받|화가').hasMatch(lower)) emotions.add('분노');
-  if (RegExp(r'불안|걱정|두려|무서|막막').hasMatch(lower)) emotions.add('불안');
-  if (RegExp(r'지쳐|피곤|번아웃|의욕|무기력').hasMatch(lower)) {
-    emotions.add('무기력');
-  }
-
-  final familyScores = <String, int>{};
-  final familyStories = <String, List<StoryItem>>{};
-  for (final story in storyDb) {
-    var score = 0;
-    for (final keyword in story.keywords) {
-      if (lower.contains(keyword.toLowerCase())) {
-        score += 10 + min(keyword.length, 5);
-      }
-    }
-    for (final emotion in story.emotions) {
-      if (emotions.contains(emotion)) score += 12;
-    }
-    if (story.categories.contains(category)) score += 8;
-    if (style != 'random' && story.styles.contains(style)) score += 4;
-
-    final family = story.id.split('__').first;
-    familyStories.putIfAbsent(family, () => []).add(story);
-    familyScores[family] = max(familyScores[family] ?? -1, score);
-  }
-
-  final bestFamily = familyScores.entries.reduce((best, candidate) {
-    if (candidate.value != best.value) {
-      return candidate.value > best.value ? candidate : best;
-    }
-    return candidate.key.compareTo(best.key) < 0 ? candidate : best;
-  }).key;
-  final candidates = familyStories[bestFamily]!;
-  var hash = 0;
-  for (final codeUnit in '$lower|$category|$style'.codeUnits) {
-    hash = ((hash * 31) + codeUnit) & 0x7fffffff;
-  }
-  return candidates[hash % candidates.length];
-}
 
 class RecordsPage extends StatefulWidget {
   final List<EmotionRecord> records;
