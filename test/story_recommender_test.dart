@@ -1,4 +1,5 @@
 import 'package:chameulin/data/story_db.dart';
+import 'package:chameulin/data/detailed_comfort_stories.dart';
 import 'package:chameulin/story_recommender.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -18,21 +19,21 @@ void main() {
     ('반려견이 죽었어. 매일 같이 걷던 길이 슬퍼', '가족', 'pet_loss'),
     ('생활비랑 월세 때문에 잠을 못 자고 있어', '나 자신', 'money_pressure'),
     ('빚이 쌓여서 막막하고 나 자신이 무능한 것 같아', '나 자신', 'money_pressure'),
-    ('월급이 밀려서 카드값을 못 내겠어', '직장', 'money_pressure'),
+    ('월급이 밀려서 카드값을 못 내겠어', '직장', 'unpaid_wages'),
     ('회사에서 해고당했어. 너무 억울하고 불안해', '직장', 'job_loss'),
     ('권고사직 얘기를 듣고 머리가 하얘졌어', '직장', 'job_loss'),
     ('매일 야근해서 피곤하고 친구에게 연락도 못 해', '직장', 'overwork'),
     ('업무량이 너무 많아서 실수할까 걱정돼', '직장', 'overwork'),
-    ('팀장이 사람들 앞에서 면박을 줘서 상처받았어', '직장', 'workplace_hurt'),
+    ('팀장이 사람들 앞에서 면박을 줘서 상처받았어', '직장', 'public_reprimand'),
     ('동료가 나한테 막말해서 너무 화가 나', '직장', 'workplace_hurt'),
     ('친구들이 나를 왕따시키고 자꾸 괴롭혀', '친구', 'bullying'),
     ('직장에서 따돌림을 당해. 내가 잘못한 건가 싶어', '직장', 'bullying'),
     ('아픈 엄마를 간병하느라 너무 지쳤어', '가족', 'caregiving'),
-    ('치매 아버지를 돌보는데 쉬고 싶어서 미안해', '가족', 'caregiving'),
-    ('독박 육아로 하루 종일 지쳐 있고 자꾸 짜증이 나', '가족', 'parenting'),
+    ('치매 아버지를 돌보는데 쉬고 싶어서 미안해', '가족', 'caregiver_guilt'),
+    ('독박 육아로 하루 종일 지쳐 있고 자꾸 짜증이 나', '가족', 'solo_parenting'),
     ('아기가 밤마다 울어서 잠을 못 자', '가족', 'parenting'),
-    ('부모님이 결혼하라고 잔소리해서 스트레스야', '가족', 'family_pressure'),
-    ('엄마가 다른 집 자녀와 비교해서 서운해', '가족', 'family_pressure'),
+    ('부모님이 결혼하라고 잔소리해서 스트레스야', '가족', 'marriage_pressure'),
+    ('엄마가 다른 집 자녀와 비교해서 서운해', '가족', 'family_comparison'),
     ('남편이랑 집안일 때문에 싸웠어', '가족', 'couple_conflict'),
     ('아내와 다퉜는데 집에 가기가 불편해', '가족', 'couple_conflict'),
     ('친구가 읽씹해서 내가 뭘 잘못했나 계속 생각나', '친구', 'unanswered'),
@@ -40,7 +41,7 @@ void main() {
     ('여자친구에게 연락이 없어서 서운해', '연인', 'unanswered'),
     ('믿었던 친구가 거짓말을 해서 상처받았어', '친구', 'betrayal'),
     ('남편의 외도를 알게 됐어. 내가 부족했나', '가족', 'betrayal'),
-    ('검사 결과를 기다리는데 무서워', '나 자신', 'health_worry'),
+    ('검사 결과를 기다리는데 무서워', '나 자신', 'waiting_test_results'),
     ('몸이 아파서 병원에 갔는데 지쳐', '나 자신', 'health_worry'),
     ('입원한 아빠가 걱정돼서 잠이 안 와', '가족', 'health_worry'),
     ('요즘 잠이 안 와서 밤이 너무 길어', '나 자신', 'sleep_trouble'),
@@ -63,7 +64,7 @@ void main() {
     ('버스를 놓쳤는데 차도 막혀서 짜증 나', '나 자신', 'commute'),
     ('고객이 욕을 하고 무례하게 말해서 너무 화가 났어', '고객', 'customer_hurt'),
     ('손님이 갑질을 하고 폭언했어', '직장', 'customer_hurt'),
-    ('면접에서 또 탈락해서 실패한 기분이야', '직장', 'failure'),
+    ('면접에서 또 탈락해서 실패한 기분이야', '직장', 'repeated_rejection'),
     ('시험에 떨어졌어. 공부를 더 했어야 했나 후회돼', '나 자신', 'failure'),
     ('미래가 너무 걱정되고 불안해서 잠이 안 와', '나 자신', 'anxiety'),
     ('친구에게 상처 주는 말을 해서 미안해. 사과하고 싶어', '친구', 'apology'),
@@ -118,7 +119,10 @@ void main() {
       final story = recommendStory(text, category, 'comfort');
       expect(storyDb, contains(story));
       expect(story.id, isNot(contains('__')));
-      expect(story.body.length, lessThanOrEqualTo(100));
+      expect(
+          story.body.length,
+          lessThanOrEqualTo(
+              detailedComfortStories.contains(story) ? 400 : 100));
     }
   });
 }

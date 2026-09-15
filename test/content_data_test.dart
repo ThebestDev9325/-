@@ -1,6 +1,7 @@
 import 'package:chameulin/data/positive_stories.dart';
 import 'package:chameulin/data/daily_quotes.dart';
 import 'package:chameulin/data/story_db.dart';
+import 'package:chameulin/data/detailed_comfort_stories.dart';
 import 'package:chameulin/main.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -31,12 +32,14 @@ void main() {
   });
 
   test('위로 이야기에는 주요 감정 상황이 포함된다', () {
-    expect(storyDb.length, 326);
+    expect(storyDb.length, 358);
     final ids = storyDb.map((story) => story.id).toSet();
     expect(ids.length, storyDb.length);
     expect(storyDb.map((story) => story.body).toSet().length, storyDb.length);
     for (final story in storyDb) {
-      expect(story.body.length, lessThanOrEqualTo(100), reason: story.id);
+      expect(story.body.length,
+          lessThanOrEqualTo(detailedComfortStories.contains(story) ? 400 : 100),
+          reason: story.id);
     }
     expect(
       ids,
@@ -58,7 +61,7 @@ void main() {
     );
     expect(
       recommendStory('면접에서 또 탈락해서 실패한 기분이야', '직장', 'comfort').id,
-      startsWith('failure'),
+      'repeated_rejection',
     );
     expect(
       recommendStory('미래가 너무 걱정되고 불안해서 잠이 안 와', '나 자신', 'comfort').id,
