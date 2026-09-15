@@ -2,6 +2,7 @@ import '../models.dart';
 import 'situation_stories.dart';
 import 'detailed_comfort_stories.dart';
 import 'daily_stress_stories.dart';
+import 'classified_comfort_stories.dart';
 
 const _storySeeds = <StoryItem>[
   StoryItem(
@@ -333,6 +334,7 @@ final storyDb = <StoryItem>[
   ...situationStories,
   ...detailedComfortStories,
   ...dailyStressStories,
+  ...classifiedComfortStories,
   for (final seed in _storySeeds) ...[
     StoryItem(
       id: seed.id,
