@@ -1,4 +1,5 @@
 import 'data/story_db.dart';
+import 'data/daily_stress_stories.dart';
 import 'models.dart';
 
 class _SituationRule {
@@ -104,6 +105,9 @@ final _rules = <_SituationRule>[
       r'업무|보고서|회사|직장|프로젝트|상사|팀장|부장|거래처'),
   _SituationRule(
       'customer_hurt', 4, r'욕을|욕하|욕설|욕먹|무례|갑질|폭언|모욕|진상', r'고객|손님|민원|상담|응대|서비스'),
+  for (final scenario in dailyStressScenarios)
+    _SituationRule(scenario.story.id, 4, scenario.signal, scenario.context,
+        scenario.excluded),
   _SituationRule('workplace_hurt', 3, r'혼났|혼나|무시|면박|소리질|모욕|폭언|욕설|욕을|갈등|막말|꾸중',
       r'상사|팀장|부장|동료|회사|직장|사장|선배'),
   _SituationRule('money_pressure', 3,
