@@ -6,13 +6,18 @@ class _SituationRule {
   final int priority;
   final RegExp signal;
   final RegExp? context;
+  final RegExp? excluded;
 
-  _SituationRule(this.id, this.priority, String signal, [String? context])
+  _SituationRule(this.id, this.priority, String signal,
+      [String? context, String? excluded])
       : signal = RegExp(signal),
-        context = context == null ? null : RegExp(context);
+        context = context == null ? null : RegExp(context),
+        excluded = excluded == null ? null : RegExp(excluded);
 
   bool matches(String text) =>
-      signal.hasMatch(text) && (context == null || context!.hasMatch(text));
+      signal.hasMatch(text) &&
+      (context == null || context!.hasMatch(text)) &&
+      !(excluded?.hasMatch(text) ?? false);
 }
 
 // A concrete event outranks a general feeling. Context gates prevent a mere
@@ -29,6 +34,67 @@ final _rules = <_SituationRule>[
       r'엄마|아빠|어머니|아버지|부모|할머니|할아버지|친구|남편|아내|동생|언니|오빠|누나|형|아이|아기|가족'),
   _SituationRule('bullying', 4, r'왕따|따돌림|따돌려|따돌리|집단괴롭힘|괴롭힘을당|괴롭혀'),
   _SituationRule('job_loss', 4, r'해고|정리해고|권고사직|실직|일자리를잃|계약종료|계약이끝|회사에서잘렸'),
+  // Specific combinations precede their broader families. Both the event
+  // and its distinguishing detail must be present; category alone is not one.
+  _SituationRule(
+      'short_rest_shift',
+      4,
+      r'(새벽|이른아침|아침일찍|몇시간못자|잠도못자).*출근|출근.*(새벽|이른아침|아침일찍)',
+      r'야근|밤늦게.*일|늦게.*퇴근|늦은시간까지.*일',
+      r'(새벽|이른아침|아침일찍)출근(은|을|이)?(안|없|하지않)'),
+  _SituationRule('sick_at_work', 4, r'아픈데|아파도|아파서|몸살|열이나|열이났',
+      r'출근|일해야|일을해야|못쉬|쉬지못|병가.*못'),
+  _SituationRule('after_hours_work', 4, r'퇴근후|퇴근하고|퇴근했|쉬는날|휴일|주말|밤늦게',
+      r'업무연락|업무카톡|일하라는연락|회사.*연락|상사.*연락|팀장.*연락'),
+  _SituationRule('leave_guilt', 4, r'연차|휴가|휴직', r'눈치|못쓰|못쉬|미안|죄책|거절|안된'),
+  _SituationRule(
+      'unfair_workload', 4, r'업무|일을|일이|뒷정리', r'떠넘|나만|나한테만|혼자.*맡|늘내몫|내게만'),
+  _SituationRule(
+      'public_reprimand', 4, r'사람들앞|직원들앞|다들보는|공개적으로|회의중', r'혼났|혼나|면박|망신|꾸중|질책'),
+  _SituationRule('changing_instructions', 4, r'지시|요구|기준|방향|시키는대로',
+      r'자꾸바뀌|계속바뀌|또바뀌|말이바뀌|다시하라|다르게하라'),
+  _SituationRule('work_unrecognized', 4, r'회사|업무|프로젝트|직장|일했|야근',
+      r'알아주지않|안알아|몰라줘|인정.*못받|수고.*말.*없'),
+  _SituationRule('new_job_overwhelmed', 4, r'신입|입사한지|첫출근|새직장',
+      r'질문.*눈치|물어.*눈치|모르는게|모르는일|서툴|적응.*힘'),
+  _SituationRule('customer_forced_apology', 4,
+      r'(?=.*(고객|손님|민원))(?=.*사과)(?=.*(내잘못이아|잘못한게없|잘못도없|잘못이없))'),
+  _SituationRule('solo_parenting', 4, r'독박육아|육아.*혼자|혼자.*육아|아이.*혼자.*돌보'),
+  _SituationRule('parent_guilt', 4,
+      r'(?=.*(아이|아기|아들|딸))(?=.*(소리쳤|소리질렀|화를냈))(?=.*(미안|후회|자책|마음이아))'),
+  _SituationRule('caregiver_guilt', 4, r'간병|병간호|치매.*돌보', r'쉬고싶|벗어나고싶|미안|죄책'),
+  _SituationRule('unequal_housework', 4, r'집안일|가사|설거지|청소',
+      r'나만|혼자|내몫|나한테만|아무도안|도와주지않|안도와'),
+  _SituationRule('family_comparison', 4, r'엄마|아빠|부모|가족|어머니|아버지',
+      r'비교하|비교해|비교해서|비교당|비교를|비교했|남의집.*비교|다른집.*비교'),
+  _SituationRule('marriage_pressure', 4, r'부모|엄마|아빠|가족|친척|명절',
+      r'결혼.*(언제|재촉|압박|잔소리|강요)|언제.*결혼|결혼하라고'),
+  _SituationRule('dismissed_feelings', 4, r'힘들다고|고민을|털어놨|속상하다고',
+      r'예민|별일아니|별거아니|다그렇게|유난|대수롭지|넘겨'),
+  _SituationRule(
+      'one_sided_contact', 4, r'연락|약속', r'나만먼저|늘내가먼저|항상내가먼저|나만하|나만잡'),
+  _SituationRule(
+      'last_minute_cancel', 4, r'약속', r'(직전|당일|갑자기).*취소|취소.*(직전|당일|갑자기)'),
+  _SituationRule(
+      'excluded_friends', 4, r'친구', r'나빼고.*(만났|모였|놀았)|나없이.*(만났|모였)|나만.*초대.*못'),
+  _SituationRule('broken_promise', 4, r'약속', r'또안지|또어겼|자꾸어|계속어|매번어|반복.*안지'),
+  _SituationRule(
+      'breakup_daily_absence', 5, r'헤어졌|헤어진|이별', r'연락하고싶|전화하고싶|습관처럼|먼저알려주고싶'),
+  _SituationRule(
+      'grief_anniversary', 5, r'기일|돌아가신.*생일|떠나보낸.*생일', r'그리|보고싶|빈자리|생각나|슬퍼|힘들'),
+  _SituationRule('repeated_rejection', 4, r'불합격|탈락|떨어졌', r'또|계속|번이나|번째|연속'),
+  _SituationRule('effort_without_grades', 4,
+      r'(?=.*(공부|시험))(?=.*(열심히|밤새|많이했|노력))(?=.*(점수|성적))(?=.*(안나|낮|떨어|못|실망))'),
+  _SituationRule('peers_moving_ahead', 4,
+      r'(?=.*(친구|동기|주변))(?=.*취업)(?=.*(나만|뒤처|뒤쳐|축하.*불안|축하.*슬))'),
+  _SituationRule('payday_bills', 4, r'월급|급여', r'남는게없|남지않|들어오자마자|스쳐|다빠져|전부빠져'),
+  _SituationRule('unpaid_wages', 4, r'월급|급여|임금', r'밀려|밀렸|체불|못받|안들어|미지급'),
+  _SituationRule(
+      'unexpected_expense', 4, r'갑자기|예상치못|예상밖|생각지못', r'큰돈|지출|수리비|병원비|치료비'),
+  _SituationRule('waiting_test_results', 4, r'검사결과|검진결과', r'기다|나오기전|아직안나'),
+  _SituationRule(
+      'chronic_pain_unseen', 4, r'통증|만성|계속아|오래아', r'멀쩡|엄살|안아파보|안아픈줄|티가안'),
+  _SituationRule('lonely_birthday', 4, r'생일', r'외로|외롭|연락.*없|아무도|기억.*못|혼자'),
   _SituationRule('breakup', 4, r'이별|헤어졌|헤어지자|헤어진|차였|이혼|결별'),
   _SituationRule('betrayal', 4, r'배신|바람피|바람을피|외도|불륜|거짓말',
       r'친구|연인|남친|여친|남자친구|여자친구|애인|남편|아내|배우자|믿었|믿었던'),
