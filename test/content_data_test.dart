@@ -4,6 +4,7 @@ import 'package:chameulin/data/story_db.dart';
 import 'package:chameulin/data/detailed_comfort_stories.dart';
 import 'package:chameulin/data/daily_stress_stories.dart';
 import 'package:chameulin/data/classified_comfort_stories.dart';
+import 'package:chameulin/data/relationship_life_stories.dart';
 import 'package:chameulin/main.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -34,7 +35,7 @@ void main() {
   });
 
   test('위로 이야기에는 주요 감정 상황이 포함된다', () {
-    expect(storyDb.length, 406);
+    expect(storyDb.length, 436);
     final ids = storyDb.map((story) => story.id).toSet();
     expect(ids.length, storyDb.length);
     expect(storyDb.map((story) => story.body).toSet().length, storyDb.length);
@@ -44,7 +45,8 @@ void main() {
         lessThanOrEqualTo(
           detailedComfortStories.contains(story) ||
                   dailyStressStories.contains(story) ||
-                  classifiedComfortStories.contains(story)
+                  classifiedComfortStories.contains(story) ||
+                  relationshipLifeStories.contains(story)
               ? 400
               : 100,
         ),

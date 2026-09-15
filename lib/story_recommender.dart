@@ -1,6 +1,7 @@
 import 'data/story_db.dart';
 import 'data/daily_stress_stories.dart';
 import 'data/classified_comfort_stories.dart';
+import 'data/relationship_life_stories.dart';
 import 'models.dart';
 
 class _SituationRule {
@@ -25,6 +26,9 @@ class _SituationRule {
 // A concrete event outranks a general feeling. Context gates prevent a mere
 // mention of a person, phone, exam, etc. from inventing an event.
 final _rules = <_SituationRule>[
+  for (final scenario in relationshipLifeScenarios)
+    _SituationRule(scenario.story.id, 5, scenario.signal, scenario.context,
+        scenario.excluded),
   _SituationRule('credit_taken', 4, r'가로채|가로챘|뺏|빼앗|자기가했다고|자신이했다고',
       r'공로|성과|보고서|업무|프로젝트|내가한일'),
   _SituationRule(
